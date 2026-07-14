@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UCCs — Mustang HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14181b;
+    --s1:#1c2226;
+    --bd:#2a3136;
+    --tx:#e8ecee;
+    --tx-dim:#8a9299;
+    --acc:#1a6b5c;      /* UCCs teal-green identity */
+    --acc-bright:#22a186;
+    --cat:#f5a623;      /* reserved strictly for CAT/Caterpillar branding */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--tx);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .wrap{max-width:520px;text-align:center;padding:40px}
+  h1{
+    font-family:'Barlow Semi Condensed',sans-serif;
+    font-weight:700;
+    font-size:2.4rem;
+    letter-spacing:.02em;
+    color:var(--tx);
+    margin-bottom:8px;
+  }
+  h1 span{color:var(--acc-bright)}
+  p{color:var(--tx-dim);font-size:.95rem;line-height:1.6;margin-bottom:24px}
+  .badge{
+    display:inline-block;
+    border:1px solid var(--acc);
+    color:var(--acc-bright);
+    font-family:'Barlow Semi Condensed',sans-serif;
+    font-weight:600;
+    font-size:.75rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    padding:6px 14px;
+    border-radius:2px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="badge">Mustang HUD</div>
+    <h1>UCC<span>s</span></h1>
+    <p>Deep-dive UCC filing analytics — company-level history and cross-filing pattern search, built on the shared sales-funnel dataset.</p>
+    <p>Upload wizard and dashboard coming soon.</p>
+  </div>
+</body>
+</html>

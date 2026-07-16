@@ -107,7 +107,6 @@ tbody tr:last-child td{border-bottom:none}
     <div class="fgrp"><label>Equipment Description</label><select id="f-equipment"><option value="">All</option></select></div>
     <div class="fgrp"><label>Deal Type</label><select id="f-status"><option value="">All</option></select></div>
     <div class="fgrp"><label>New / Used</label><select id="f-newused"><option value="">All</option></select></div>
-    <button onclick="applyFilters()">Apply</button>
     <button class="ghost" onclick="clearFilters()">Clear</button>
   </div>
 
@@ -451,6 +450,16 @@ async function exportToExcel(){
 }
 
 // ── Init ────────────────────────────────────────────────────────────────
+var debounceTimer = null;
+function debouncedApply(){
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(applyFilters, 350);
+}
+['f-from','f-to','f-salesmen','f-manufacturer','f-equipment','f-status','f-newused'].forEach(function(id){
+  document.getElementById(id).addEventListener('change', applyFilters);
+});
+document.getElementById('f-company').addEventListener('input', debouncedApply);
+
 loadFacets();
 loadOverview();
 loadRaw(0);

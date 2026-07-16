@@ -47,6 +47,33 @@ function money(v) {
   return parseFloat(sv) || 0;
 }
 
+// Normalizes whatever date shape SheetJS hands back (observed as MM/DD/YYYY
+// despite the dateNF option) into a strict ISO YYYY-MM-DD string. Falls back
+// to passing the value through unchanged if it doesn't match a known shape,
+// so unexpected formats surface visibly rather than silently corrupting.
+function toISODate(v) {
+  const s = String(v || '').trim();
+  if (!s) return '';
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // MM/DD/YYYY or M/D/YYYY
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const [, mm, dd, yyyy] = m;
+    return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  }
+  // Raw Excel date serial (days since 1899-12-30) — some cells in this export
+  // aren't typed as real dates, so SheetJS falls back to the bare number.
+  if (/^\d{4,6}$/.test(s)) {
+    const parsed = XLSX.SSF.parse_date_code(Number(s));
+    if (parsed) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`;
+    }
+  }
+  console.warn(`  WARNING: unrecognized date format "${s}", stored as-is`);
+  return s;
+}
+
 const UCC_RAW_COLUMNS = [
   'EASI_COMPANYID', 'BUYER ID', 'COMPANY', 'CUSTOMER NUMBER', 'DBS NAME', 'FILING DATE',
   'MANUFACTURER', 'EQUIPMENT DESCRIPTION', 'SERIAL', 'MODEL',
@@ -121,7 +148,7 @@ async function main() {
     if (!r || r.length < 5) continue;
 
     const serial = String(r[C['SERIAL']] || '').trim();
-    const fdate = String(r[C['FILING DATE']] || '').split('T')[0].split(' ')[0];
+    const fdate = toISODate(r[C['FILING DATE']]);
     const mfr = String(r[C['MANUFACTURER']] || '').trim();
     if (!serial && !fdate && !mfr) continue;
 

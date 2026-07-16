@@ -12,12 +12,6 @@
 
 import { createClient } from '@libsql/client/web';
 
-console.log('DEBUG env check:', {
-  hasUrl: !!process.env.TURSO_DATABASE_URL,
-  hasToken: !!process.env.TURSO_AUTH_TOKEN,
-  urlPrefix: (process.env.TURSO_DATABASE_URL || '').slice(0, 12)
-});
-
 const client = createClient({
   url: process.env.TURSO_DATABASE_URL,
   authToken: process.env.TURSO_AUTH_TOKEN
@@ -68,40 +62,21 @@ async function getFacets() {
 
 async function getPinsOverview(params) {
   const { whereSql, args } = buildFilters(params);
+  const countyWhere = whereSql ? `${whereSql} AND county IS NOT NULL AND county != ''` : `WHERE county IS NOT NULL AND county != ''`;
+  const equipWhere = whereSql ? `${whereSql} AND equipment_description IS NOT NULL AND equipment_description != ''` : `WHERE equipment_description IS NOT NULL AND equipment_description != ''`;
+  const mfrWhere = whereSql ? `${whereSql} AND manufacturer IS NOT NULL AND manufacturer != ''` : `WHERE manufacturer IS NOT NULL AND manufacturer != ''`;
 
-  const [tiles, byCounty, byEquipment, byManufacturer] = await Promise.all([
-    client.execute({
-      sql: `SELECT COUNT(*) AS industry,
-                   SUM(CASE WHEN manufacturer = 'CAT' THEN 1 ELSE 0 END) AS cat
-            FROM ucc_facts ${whereSql}`,
-      args
-    }),
-    client.execute({
-      sql: `SELECT county,
-                   COUNT(*) AS industry,
-                   SUM(CASE WHEN manufacturer = 'CAT' THEN 1 ELSE 0 END) AS cat
-            FROM ucc_facts ${whereSql} ${whereSql ? 'AND' : 'WHERE'} county IS NOT NULL AND county != ''
-            GROUP BY county
-            ORDER BY county`,
-      args
-    }),
-    client.execute({
-      sql: `SELECT equipment_description,
-                   COUNT(*) AS industry,
-                   SUM(CASE WHEN manufacturer = 'CAT' THEN 1 ELSE 0 END) AS cat
-            FROM ucc_facts ${whereSql} ${whereSql ? 'AND' : 'WHERE'} equipment_description IS NOT NULL AND equipment_description != ''
-            GROUP BY equipment_description
-            ORDER BY industry DESC`,
-      args
-    }),
-    client.execute({
-      sql: `SELECT manufacturer, COUNT(*) AS total
-            FROM ucc_facts ${whereSql} ${whereSql ? 'AND' : 'WHERE'} manufacturer IS NOT NULL AND manufacturer != ''
-            GROUP BY manufacturer
-            ORDER BY total DESC`,
-      args
-    })
-  ]);
+  // Single batched round-trip instead of 4 separate queries — each .execute() call
+  // over the HTTP transport pays its own network round-trip, which is the dominant
+  // cost here, not the query execution itself against an already-indexed table.
+  const results = await client.batch([
+    { sql: `SELECT COUNT(*) AS industry, SUM(CASE WHEN manufacturer = 'CAT' THEN 1 ELSE 0 END) AS cat FROM ucc_facts ${whereSql}`, args },
+    { sql: `SELECT county, COUNT(*) AS industry, SUM(CASE WHEN manufacturer = 'CAT' THEN 1 ELSE 0 END) AS cat FROM ucc_facts ${countyWhere} GROUP BY county ORDER BY county`, args },
+    { sql: `SELECT equipment_description, COUNT(*) AS industry, SUM(CASE WHEN manufacturer = 'CAT' THEN 1 ELSE 0 END) AS cat FROM ucc_facts ${equipWhere} GROUP BY equipment_description ORDER BY industry DESC`, args },
+    { sql: `SELECT manufacturer, COUNT(*) AS total FROM ucc_facts ${mfrWhere} GROUP BY manufacturer ORDER BY total DESC`, args }
+  ], 'read');
+
+  const [tiles, byCounty, byEquipment, byManufacturer] = results;
 
   const t = tiles.rows[0] || { industry: 0, cat: 0 };
   const industryTotal = Number(t.industry || 0);
@@ -136,9 +111,9 @@ async function getSearch(params) {
   const limit = Math.min(parseInt(params.get('limit') || '50', 10), 5000);
   const offset = parseInt(params.get('offset') || '0', 10);
 
-  const [countRes, rowsRes] = await Promise.all([
-    client.execute({ sql: `SELECT COUNT(*) AS cnt FROM ucc_facts ${whereSql}`, args }),
-    client.execute({
+  const [countRes, rowsRes] = await client.batch([
+    { sql: `SELECT COUNT(*) AS cnt FROM ucc_facts ${whereSql}`, args },
+    {
       sql: `SELECT company, filing_date, ucc_status, manufacturer, equipment_description, model,
                    serial, new_used, mfg_year, equipment_value, county, city, zip,
                    user_assignment, salesmen1
@@ -146,8 +121,8 @@ async function getSearch(params) {
             ORDER BY filing_date DESC
             LIMIT ? OFFSET ?`,
       args: [...args, limit, offset]
-    })
-  ]);
+    }
+  ], 'read');
 
   return { total: Number(countRes.rows[0]?.cnt || 0), rows: rowsRes.rows };
 }

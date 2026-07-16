@@ -12,6 +12,7 @@
 import { createClient } from '@libsql/client';
 import XLSX from 'xlsx';
 import path from 'path';
+import zlib from 'zlib';
 
 const TURSO_URL = process.env.TURSO_DATABASE_URL;
 const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN;
@@ -215,6 +216,60 @@ async function main() {
   }
 
   console.log(`Done. Upserted ${upserted} rows, ${skipped} unchanged, load_batch=${loadBatch}.`);
+
+  await buildPayload();
+}
+
+// ── Precompute the full dashboard payload as a single gzip blob ─────────
+// This is what makes the dashboard instant: instead of the browser (or a
+// Netlify function) re-querying/re-aggregating 89K+ rows on every filter
+// change, we ship the whole flat dataset once, and all filtering happens
+// client-side in memory. Same pattern as PINS/Sales Funnel's precompute step.
+async function buildPayload() {
+  console.log('Building dashboard payload...');
+  const countRes = await client.execute('SELECT COUNT(*) as cnt FROM ucc_facts');
+  const total = Number(countRes.rows[0]?.cnt || 0);
+
+  const cols = [
+    'company', 'filing_date', 'ucc_status', 'manufacturer', 'equipment_description',
+    'model', 'serial', 'new_used', 'equipment_value', 'county', 'city',
+    'user_assignment', 'salesmen1'
+  ];
+
+  const allRows = [];
+  const PAGE = 10000;
+  for (let offset = 0; offset < total; offset += PAGE) {
+    const res = await client.execute({
+      sql: `SELECT ${cols.join(',')} FROM ucc_facts LIMIT ? OFFSET ?`,
+      args: [PAGE, offset]
+    });
+    // Array-of-arrays, not array-of-objects — avoids repeating field names
+    // ~89K times, which is most of the payload weight.
+    res.rows.forEach((r) => { allRows.push(cols.map((c) => r[c])); });
+    console.log(`  read ${Math.min(offset + PAGE, total)} / ${total} for payload`);
+  }
+
+  const payload = { columns: cols, rows: allRows, generated_at: new Date().toISOString() };
+  const json = JSON.stringify(payload);
+  const gz = zlib.gzipSync(Buffer.from(json, 'utf-8'));
+  const b64 = gz.toString('base64');
+
+  await client.execute({
+    sql: `CREATE TABLE IF NOT EXISTS ucc_payload (
+      id INTEGER PRIMARY KEY,
+      data TEXT NOT NULL,
+      row_count INTEGER,
+      updated_at TEXT
+    )`,
+    args: []
+  });
+  await client.execute({
+    sql: `INSERT INTO ucc_payload (id, data, row_count, updated_at) VALUES (1, ?, ?, datetime('now'))
+          ON CONFLICT(id) DO UPDATE SET data=excluded.data, row_count=excluded.row_count, updated_at=excluded.updated_at`,
+    args: [b64, allRows.length]
+  });
+
+  console.log(`Payload built: ${allRows.length} rows, ${(json.length/1024/1024).toFixed(1)}MB raw -> ${(gz.length/1024/1024).toFixed(2)}MB gzipped.`);
 }
 
 main().catch((err) => {

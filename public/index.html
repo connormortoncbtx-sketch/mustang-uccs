@@ -81,10 +81,31 @@ tbody tr:last-child td{border-bottom:none}
 .loading,.empty{padding:30px;text-align:center;color:var(--tx-dim);font-size:.82rem}
 .tooltip{position:fixed;background:var(--s2);border:1px solid var(--acc-bright);padding:8px 10px;font-size:.72rem;pointer-events:none;z-index:50;display:none;white-space:nowrap}
 
+.loading-screen{
+  position:fixed;inset:0;background:var(--bg);z-index:100;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;
+  transition:opacity .25s ease;
+}
+.loading-screen.hidden{opacity:0;pointer-events:none}
+.loading-spinner{
+  width:36px;height:36px;border:3px solid var(--bd);border-top-color:var(--acc-bright);
+  border-radius:50%;animation:spin .8s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+.loading-screen .loading-text{
+  font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:.85rem;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--tx-dim);
+}
+
 @media(max-width:1000px){ .tiles,.row2{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
+
+<div class="loading-screen" id="loading-screen">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loading-text">Loading UCC data&hellip;</div>
+</div>
 
 <header>
   <span class="eyebrow">Mustang HUD</span>
@@ -198,21 +219,25 @@ function normCounty(s){ return String(s||'').trim().toLowerCase(); }
 
 // ── Load the full precomputed payload once ─────────────────────────────
 async function loadPayload(){
-  document.getElementById('county-table').innerHTML = '<tr><td colspan="4" class="loading">Loading&hellip;</td></tr>';
-  var resp = await fetch(BASE + '/api/ucc-payload');
-  var d = await resp.json();
-  if(d.error){
-    document.getElementById('county-table').innerHTML = '<tr><td colspan="4" class="empty">'+esc(d.error)+'</td></tr>';
-    return;
+  try {
+    var resp = await fetch(BASE + '/api/ucc-payload');
+    var d = await resp.json();
+    if(d.error){
+      document.getElementById('loading-text').textContent = 'Error: ' + d.error;
+      return;
+    }
+    var cols = d.columns;
+    ALL_ROWS = d.rows.map(function(r){
+      var o = {};
+      cols.forEach(function(c,i){ o[c] = r[i]; });
+      return o;
+    });
+    populateFacets();
+    applyFilters();
+    document.getElementById('loading-screen').classList.add('hidden');
+  } catch(e){
+    document.getElementById('loading-text').textContent = 'Failed to load: ' + e.message;
   }
-  var cols = d.columns;
-  ALL_ROWS = d.rows.map(function(r){
-    var o = {};
-    cols.forEach(function(c,i){ o[c] = r[i]; });
-    return o;
-  });
-  populateFacets();
-  applyFilters();
 }
 
 function populateFacets(){

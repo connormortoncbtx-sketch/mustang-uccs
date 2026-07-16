@@ -100,7 +100,8 @@ main{padding:20px 26px 60px;max-width:1500px;margin:0 auto}
 .legend-grad{width:120px;height:10px;background:linear-gradient(90deg,var(--r),#c8a200,var(--g))}
 
 table{width:100%;border-collapse:collapse}
-th{text-align:left;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:.65rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-dim);padding:8px 10px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--s1)}
+th{text-align:left;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:.65rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-dim);padding:8px 10px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--s1);cursor:pointer;user-select:none}
+th:hover{color:var(--tx)}
 td{padding:7px 10px;border-bottom:1px solid var(--bd);font-size:.78rem}
 tbody tr:last-child td{border-bottom:none}
 .scroll-table{max-height:360px;overflow-y:auto}
@@ -204,7 +205,7 @@ tbody tr.faded{opacity:.32}
       <div class="ptitle">PINS % by County</div>
       <svg id="map-svg" viewBox="0 0 600 600"></svg>
       <div class="map-legend">
-        <span>0%</span><div class="legend-grad"></div><span>30%</span><span>60%+</span>
+        <span id="legend-floor">10%</span><div class="legend-grad"></div><span id="legend-mid">30%</span><span id="legend-ceil">50%+</span>
         <span style="margin-left:14px;color:var(--tx-faint)">Grey = no filings</span>
       </div>
     </div>
@@ -212,7 +213,7 @@ tbody tr.faded{opacity:.32}
       <div class="ptitle">County Breakdown</div>
       <div class="scroll-table county-scroll">
         <table>
-          <thead><tr><th>County</th><th class="num">CAT</th><th class="num">Industry</th><th class="num">PINS %</th></tr></thead>
+          <thead id="county-thead"><tr><th>County</th><th class="num">CAT</th><th class="num">Industry</th><th class="num">PINS %</th></tr></thead>
           <tbody id="county-table"><tr><td colspan="4" class="loading">Loading&hellip;</td></tr></tbody>
         </table>
       </div>
@@ -224,7 +225,7 @@ tbody tr.faded{opacity:.32}
       <div class="ptitle">Equipment Description Breakdown</div>
       <div class="scroll-table">
         <table>
-          <thead><tr><th>Equipment Description</th><th class="num">CAT</th><th class="num">Industry</th><th class="num">PINS %</th></tr></thead>
+          <thead id="equipment-thead"><tr><th>Equipment Description</th><th class="num">CAT</th><th class="num">Industry</th><th class="num">PINS %</th></tr></thead>
           <tbody id="equipment-table"><tr><td colspan="4" class="loading">Loading&hellip;</td></tr></tbody>
         </table>
       </div>
@@ -245,8 +246,8 @@ tbody tr.faded{opacity:.32}
     </div>
     <div class="scroll-table" style="max-height:420px">
       <table>
-        <thead>
-          <tr><th>Company</th><th>Filing Date</th><th>Type</th><th>Manufacturer</th><th>Equipment</th><th>Model</th><th class="num">Value</th><th>County</th><th>Rep</th></tr>
+        <thead id="raw-thead">
+          <tr></tr>
         </thead>
         <tbody id="raw-table"><tr><td colspan="9" class="loading">Loading&hellip;</td></tr></tbody>
       </table>
@@ -268,6 +269,13 @@ var ALL_ROWS = [];
 var ANCHOR_DATE = ''; // latest filing_date in the dataset — presets/YTD are computed from this, not real "today"
 var rawState = { offset: 0, limit: 50 };
 var currentFiltered = [];
+var countyListData = [];
+var equipListData = [];
+var countySortState = {col:'industry', dir:'desc'};
+var equipSortState = {col:'industry', dir:'desc'};
+var rawSortState = {col:'filing_date', dir:'desc'};
+var mapColorFloor = 10;
+var mapColorCeil = 50;
 
 var DIM_ORDER = ['salesmen1','manufacturer','equipment_description','ucc_status','new_used'];
 var DIM_LABELS = {
@@ -342,6 +350,12 @@ function populateFacets(){
   });
   DIM_ORDER.forEach(function(d){
     FACET_VALUES[d] = Object.keys(sets[d]).sort();
+  });
+  // Dashboard opens defaulted to New equipment only
+  if(FACET_VALUES.new_used.indexOf('N') >= 0){
+    filters.new_used.values = new Set(['N']);
+  }
+  DIM_ORDER.forEach(function(d){
     buildMsDropdown(d, FACET_VALUES[d]);
     updateMsLabel(d);
   });
@@ -628,6 +642,64 @@ function decorate(list, dim, keyFn){
   });
 }
 
+// ── Generic column sort (click a <th>, click again to reverse) ─────────
+function sortRows(list, col, dir, numeric){
+  var sorted = list.slice();
+  sorted.sort(function(a,b){
+    var av = a[col], bv = b[col];
+    if(numeric){ av = parseFloat(av)||0; bv = parseFloat(bv)||0; }
+    else { av = String(av||'').toLowerCase(); bv = String(bv||'').toLowerCase(); }
+    if(av<bv) return dir==='asc' ? -1 : 1;
+    if(av>bv) return dir==='asc' ? 1 : -1;
+    return 0;
+  });
+  return sorted;
+}
+function sortArrow(state, col){
+  if(state.col!==col) return '';
+  return state.dir==='asc' ? ' \u25B2' : ' \u25BC';
+}
+function sortToggle(which, col, numeric){
+  var state = which==='county' ? countySortState : which==='equipment' ? equipSortState : rawSortState;
+  if(state.col===col){ state.dir = state.dir==='asc' ? 'desc' : 'asc'; }
+  else { state.col = col; state.dir = numeric ? 'desc' : 'asc'; }
+  if(which==='county') renderCountyTable();
+  else if(which==='equipment') renderEquipmentTable();
+  else { rawState.offset = 0; renderRaw(); }
+}
+
+function renderCountyTable(){
+  var thead = document.getElementById('county-thead');
+  thead.innerHTML = '<tr>'+
+    '<th onclick="sortToggle(\'county\',\'county\',false)">County'+sortArrow(countySortState,'county')+'</th>'+
+    '<th class="num" onclick="sortToggle(\'county\',\'cat\',true)">CAT'+sortArrow(countySortState,'cat')+'</th>'+
+    '<th class="num" onclick="sortToggle(\'county\',\'industry\',true)">Industry'+sortArrow(countySortState,'industry')+'</th>'+
+    '<th class="num" onclick="sortToggle(\'county\',\'pins_pct\',true)">PINS %'+sortArrow(countySortState,'pins_pct')+'</th>'+
+  '</tr>';
+  var sorted = sortRows(countyListData, countySortState.col, countySortState.dir, countySortState.col!=='county');
+  document.getElementById('county-table').innerHTML = sorted.length ?
+    sorted.map(function(r){
+      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'county\','+JSON.stringify(r.county)+')">'+
+        '<td>'+esc(r.county)+'</td><td class="num">'+fmtNum(r.cat)+'</td><td class="num">'+fmtNum(r.industry)+'</td><td class="num pins-cell">'+r.pins_pct+'%</td></tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">No data</td></tr>';
+}
+
+function renderEquipmentTable(){
+  var thead = document.getElementById('equipment-thead');
+  thead.innerHTML = '<tr>'+
+    '<th onclick="sortToggle(\'equipment\',\'equipment_description\',false)">Equipment Description'+sortArrow(equipSortState,'equipment_description')+'</th>'+
+    '<th class="num" onclick="sortToggle(\'equipment\',\'cat\',true)">CAT'+sortArrow(equipSortState,'cat')+'</th>'+
+    '<th class="num" onclick="sortToggle(\'equipment\',\'industry\',true)">Industry'+sortArrow(equipSortState,'industry')+'</th>'+
+    '<th class="num" onclick="sortToggle(\'equipment\',\'pins_pct\',true)">PINS %'+sortArrow(equipSortState,'pins_pct')+'</th>'+
+  '</tr>';
+  var sorted = sortRows(equipListData, equipSortState.col, equipSortState.dir, equipSortState.col!=='equipment_description');
+  document.getElementById('equipment-table').innerHTML = sorted.length ?
+    sorted.map(function(r){
+      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'equipment_description\','+JSON.stringify(r.equipment_description)+')">'+
+        '<td>'+esc(r.equipment_description)+'</td><td class="num">'+fmtNum(r.cat)+'</td><td class="num">'+fmtNum(r.industry)+'</td><td class="num pins-cell">'+r.pins_pct+'%</td></tr>';
+    }).join('') : '<tr><td colspan="4" class="empty">No data</td></tr>';
+}
+
 function recomputeAndRender(){
   var byCounty = {}, byEquipment = {}, byManufacturer = {};
   var tilesCat = 0, tilesIndustry = 0;
@@ -677,13 +749,20 @@ function recomputeAndRender(){
   var countyList = Object.values(byCounty).filter(function(x){return x.industry>0;});
   countyList.forEach(function(c){ c.pins_pct = c.industry ? Math.round(1000*c.cat/c.industry)/10 : 0; });
   decorate(countyList, 'county', function(x){ return x.county; });
-  countyList.sort(function(a,b){ return b.industry - a.industry; });
+  countyListData = countyList;
+  renderCountyTable();
 
-  document.getElementById('county-table').innerHTML = countyList.length ?
-    countyList.map(function(r){
-      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'county\','+JSON.stringify(r.county)+')">'+
-        '<td>'+esc(r.county)+'</td><td class="num">'+fmtNum(r.cat)+'</td><td class="num">'+fmtNum(r.industry)+'</td><td class="num pins-cell">'+r.pins_pct+'%</td></tr>';
-    }).join('') : '<tr><td colspan="4" class="empty">No data</td></tr>';
+  // Map color scale is dynamic, based on the actual PINS% spread across counties
+  // under every filter EXCEPT county itself — so selecting specific counties (map
+  // clicks or the county table) never distorts the scale relative to the rest.
+  var pinsValues = countyList.map(function(c){ return c.pins_pct; });
+  if(pinsValues.length){
+    mapColorFloor = Math.min.apply(null, pinsValues);
+    mapColorCeil = Math.max.apply(null, pinsValues);
+    if(mapColorCeil - mapColorFloor < 1) mapColorCeil = mapColorFloor + 1;
+  } else {
+    mapColorFloor = 0; mapColorCeil = 100;
+  }
 
   var countyMap = {};
   countyList.forEach(function(r){ countyMap[normCounty(r.county)] = r; });
@@ -692,13 +771,8 @@ function recomputeAndRender(){
   var equipList = Object.values(byEquipment).filter(function(x){return x.industry>0;});
   equipList.forEach(function(e){ e.pins_pct = e.industry ? Math.round(1000*e.cat/e.industry)/10 : 0; });
   decorate(equipList, 'equipment_description', function(x){ return x.equipment_description; });
-  equipList.sort(function(a,b){ return b.industry - a.industry; });
-
-  document.getElementById('equipment-table').innerHTML = equipList.length ?
-    equipList.map(function(r){
-      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'equipment_description\','+JSON.stringify(r.equipment_description)+')">'+
-        '<td>'+esc(r.equipment_description)+'</td><td class="num">'+fmtNum(r.cat)+'</td><td class="num">'+fmtNum(r.industry)+'</td><td class="num pins-cell">'+r.pins_pct+'%</td></tr>';
-    }).join('') : '<tr><td colspan="4" class="empty">No data</td></tr>';
+  equipListData = equipList;
+  renderEquipmentTable();
 
   var mfrList = Object.values(byManufacturer).filter(function(x){return x.total>0;});
   var mfrIndustryTotal = mfrList.reduce(function(s,x){ return s+x.total; }, 0);
@@ -720,16 +794,17 @@ function recomputeAndRender(){
 
 // ── Choropleth map (green now hit at 30%, not 100% — matches what counts as "good" share here) ──
 function pinsColor(pct){
-  var MAX = 60; // full green saturation point — 30% (MAX/2) is where the gradient starts turning green
-  var effective = Math.min(pct, MAX);
+  var FLOOR = mapColorFloor, CEIL = mapColorCeil; // dynamic — recomputed per filter set, county filter excluded
+  var t = (pct - FLOOR) / (CEIL - FLOOR);
+  t = Math.max(0, Math.min(1, t));
   var r,g,b;
-  if(effective <= MAX/2){
-    var t = effective/(MAX/2);
-    r = Math.round(231 + t*(200-231));
-    g = Math.round(76 + t*(162-76));
-    b = Math.round(60 + t*(0-60));
+  if(t <= 0.5){
+    var t1 = t/0.5;
+    r = Math.round(231 + t1*(200-231));
+    g = Math.round(76 + t1*(162-76));
+    b = Math.round(60 + t1*(0-60));
   } else {
-    var t2 = (effective-MAX/2)/(MAX/2);
+    var t2 = (t-0.5)/0.5;
     r = Math.round(200 + t2*(46-200));
     g = Math.round(162 + t2*(204-162));
     b = Math.round(0 + t2*(113-0));
@@ -780,6 +855,10 @@ function renderMap(countyMap){
   var tooltip = document.getElementById('tooltip');
   var fActive = filters.county.values.size>0;
 
+  document.getElementById('legend-floor').textContent = (Math.round(mapColorFloor*10)/10) + '%';
+  document.getElementById('legend-mid').textContent = (Math.round((mapColorFloor+mapColorCeil)/2*10)/10) + '%';
+  document.getElementById('legend-ceil').textContent = (Math.round(mapColorCeil*10)/10) + '%+';
+
   svg.innerHTML = geoFeatures.map(function(f){
     var name = f.properties.CNTY_NM;
     var rec = countyMap[normCounty(name)];
@@ -802,10 +881,29 @@ function renderMap(countyMap){
 }
 
 // ── Raw data table (client-side pagination — instant) ──────────────────
+var RAW_COLS = [
+  {key:'company', label:'Company', numeric:false},
+  {key:'filing_date', label:'Filing Date', numeric:false},
+  {key:'ucc_status', label:'Type', numeric:false},
+  {key:'manufacturer', label:'Manufacturer', numeric:false},
+  {key:'equipment_description', label:'Equipment', numeric:false},
+  {key:'model', label:'Model', numeric:false},
+  {key:'equipment_value', label:'Value', numeric:true},
+  {key:'county', label:'County', numeric:false},
+  {key:'user_assignment', label:'Rep', numeric:false}
+];
+function renderRawThead(){
+  document.getElementById('raw-thead').innerHTML = '<tr>' + RAW_COLS.map(function(c){
+    var cls = c.numeric ? ' class="num"' : '';
+    return '<th'+cls+' onclick="sortToggle(\'raw\','+JSON.stringify(c.key)+','+c.numeric+')">'+c.label+sortArrow(rawSortState,c.key)+'</th>';
+  }).join('') + '</tr>';
+}
 function renderRaw(){
-  var total = currentFiltered.length;
+  renderRawThead();
+  var sorted = sortRows(currentFiltered, rawSortState.col, rawSortState.dir, rawSortState.col==='equipment_value');
+  var total = sorted.length;
   var offset = rawState.offset, limit = rawState.limit;
-  var page = currentFiltered.slice(offset, offset+limit);
+  var page = sorted.slice(offset, offset+limit);
 
   document.getElementById('raw-table').innerHTML = page.length ? page.map(function(r){
     return '<tr>'+

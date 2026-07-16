@@ -42,30 +42,42 @@ main{padding:20px 26px 60px;max-width:1500px;margin:0 auto}
 .filters button.ghost{background:transparent;color:var(--tx-dim);border-color:var(--bd)}
 .filters button.ghost:hover{color:var(--tx);border-color:var(--tx-dim)}
 
-.preset-row{display:flex;gap:6px}
-.preset-btn{background:var(--s2);border:1px solid var(--bd);color:var(--tx-dim);padding:7px 12px;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:.72rem;letter-spacing:.03em;text-transform:uppercase;cursor:pointer;height:32px}
-.preset-btn:hover{color:var(--tx);border-color:var(--tx-dim)}
-.preset-btn.on{color:#fff;background:var(--acc);border-color:var(--acc)}
-
-.relative-row{display:flex;gap:6px;align-items:center}
-.relative-row span{font-size:.72rem;color:var(--tx-faint)}
-
-.mode-btn{
-  background:var(--s2);border:1px solid var(--bd);color:var(--acc-bright);
-  padding:1px 7px;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;
-  font-size:.62rem;letter-spacing:.03em;text-transform:uppercase;cursor:pointer;
+.ms-mode-toggle{display:flex;border-bottom:1px solid var(--bd)}
+.ms-mode-opt{
+  flex:1;background:var(--s2);border:none;color:var(--tx-dim);
+  padding:7px 0;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;
+  font-size:.68rem;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;
 }
-.mode-btn.exclude-mode{color:var(--r);border-color:var(--r)}
+.ms-mode-opt:first-child{border-right:1px solid var(--bd)}
+.ms-mode-opt.on{color:#fff}
+.ms-mode-opt.on[data-mode="include"]{background:var(--acc)}
+.ms-mode-opt.on[data-mode="exclude"]{background:var(--r)}
+
+.ms-divider{border-top:1px solid var(--bd);margin:2px 0}
+.ms-custom-section{padding:8px 9px;display:flex;flex-direction:column;gap:8px}
+.ms-custom-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ms-custom-row label{font-family:'Barlow Semi Condensed',sans-serif;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-faint);width:38px;flex-shrink:0}
+.ms-custom-row input[type=date]{min-width:0;flex:1;padding:5px 7px;font-size:.74rem}
+.ms-custom-row input[type=number]{width:44px;min-width:44px;padding:5px 6px;font-size:.74rem}
+.ms-custom-row select{padding:5px 6px;font-size:.72rem;min-width:0}
+.ms-custom-row span{font-size:.7rem;color:var(--tx-faint)}
+.ms-custom-row button{
+  background:var(--acc);border:1px solid var(--acc);color:#fff;padding:5px 10px;
+  font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:.68rem;
+  letter-spacing:.03em;text-transform:uppercase;cursor:pointer;
+}
+.ms-custom-row button:hover{background:var(--acc-bright);border-color:var(--acc-bright)}
 
 .ms-wrap{position:relative}
 .ms-box{background:var(--s2);border:1px solid var(--bd);min-width:150px;max-width:200px;cursor:pointer;padding:7px 9px;position:relative}
 .ms-wrap.open .ms-box{border-color:var(--acc-bright)}
 .ms-display{font-size:.78rem;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:14px}
 .ms-display::after{content:'\25BE';position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:.6rem;color:var(--tx-faint)}
-.ms-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--acc-bright);border-top:none;z-index:60;max-height:220px;overflow-y:auto;min-width:220px}
+.ms-dropdown{display:none;position:absolute;top:100%;left:0;right:0;background:var(--s2);border:1px solid var(--acc-bright);border-top:none;z-index:60;max-height:340px;overflow-y:auto;min-width:230px}
 .ms-wrap.open .ms-dropdown{display:block}
 .ms-option{display:flex;align-items:center;gap:8px;padding:6px 9px;cursor:pointer;font-size:.76rem}
 .ms-option:hover{background:var(--bd)}
+.ms-option.on{color:var(--acc-bright);font-weight:600}
 .ms-option input{accent-color:var(--acc-bright);width:13px;height:13px;flex-shrink:0}
 .ms-clear{padding:6px 9px;font-family:'Barlow Semi Condensed',sans-serif;font-size:.68rem;color:var(--tx-faint);border-top:1px solid var(--bd);cursor:pointer;text-align:right}
 .ms-clear:hover{color:var(--acc-bright)}
@@ -169,30 +181,13 @@ tbody tr.faded{opacity:.32}
 <main>
   <div class="filters">
     <div class="filters-row">
-      <div class="fgrp"><label>Presets</label>
-        <div class="preset-row">
-          <button class="preset-btn" id="preset-this_year" onclick="setDatePreset('this_year')">This Year</button>
-          <button class="preset-btn" id="preset-prev_year" onclick="setDatePreset('prev_year')">Prev Year</button>
-          <button class="preset-btn" id="preset-ytd" onclick="setDatePreset('ytd')">YTD</button>
-          <button class="preset-btn" id="preset-quarter" onclick="setDatePreset('quarter')">Quarter</button>
-          <button class="preset-btn" id="preset-month" onclick="setDatePreset('month')">Month</button>
+      <div class="fgrp"><label>Filing Date</label>
+        <div class="ms-wrap" id="mswrap-date">
+          <div class="ms-box" onclick="toggleMsOpen('date')"><div class="ms-display" id="mslabel-date">All</div></div>
+          <div class="ms-dropdown" id="msdrop-date"></div>
         </div>
       </div>
-      <div class="fgrp"><label>From</label><input type="date" id="f-from"></div>
-      <div class="fgrp"><label>To</label><input type="date" id="f-to"></div>
-      <div class="fgrp"><label>Relative Range (ago)</label>
-        <div class="relative-row">
-          <input type="number" id="rel-from-val" min="0" placeholder="3">
-          <select id="rel-from-unit"><option value="years">Years</option><option value="months">Months</option><option value="days">Days</option></select>
-          <span>&rarr;</span>
-          <input type="number" id="rel-to-val" min="0" placeholder="1">
-          <select id="rel-to-unit"><option value="years">Years</option><option value="months">Months</option><option value="days">Days</option></select>
-          <button onclick="applyRelativeRange()">Set</button>
-        </div>
-      </div>
-    </div>
-    <div class="filters-row" id="picklist-filters"></div>
-    <div class="filters-row">
+      <div id="picklist-filters" style="display:contents"></div>
       <div class="fgrp"><label>Company</label><input type="text" id="f-company" placeholder="Search company"></div>
       <button class="ghost" onclick="clearFilters()">Clear All</button>
     </div>
@@ -209,7 +204,7 @@ tbody tr.faded{opacity:.32}
       <div class="ptitle">PINS % by County</div>
       <svg id="map-svg" viewBox="0 0 600 600"></svg>
       <div class="map-legend">
-        <span>0%</span><div class="legend-grad"></div><span>30%+</span>
+        <span>0%</span><div class="legend-grad"></div><span>30%</span><span>60%+</span>
         <span style="margin-left:14px;color:var(--tx-faint)">Grey = no filings</span>
       </div>
     </div>
@@ -329,6 +324,7 @@ async function loadPayload(){
       return o;
     });
     ANCHOR_DATE = ALL_ROWS.reduce(function(m,r){ return (r.filing_date && r.filing_date>m) ? r.filing_date : m; }, '0000-00-00');
+    buildDateDropdown();
     buildPicklistFilters();
     populateFacets();
     applyFilters();
@@ -355,7 +351,7 @@ function populateFacets(){
 function buildPicklistFilters(){
   var html = DIM_ORDER.map(function(dim){
     return '<div class="fgrp">'
-      + '<label>'+DIM_LABELS[dim]+' <button class="mode-btn" id="mode-'+dim+'" onclick="toggleMode(\''+dim+'\')">Include</button></label>'
+      + '<label>'+DIM_LABELS[dim]+'</label>'
       + '<div class="ms-wrap" id="mswrap-'+dim+'">'
         + '<div class="ms-box" onclick="toggleMsOpen(\''+dim+'\')"><div class="ms-display" id="mslabel-'+dim+'">All</div></div>'
         + '<div class="ms-dropdown" id="msdrop-'+dim+'"></div>'
@@ -369,6 +365,19 @@ function buildMsDropdown(dim, values){
   var container = document.getElementById('msdrop-'+dim);
   container.innerHTML = '';
   var f = filters[dim];
+
+  var modeWrap = document.createElement('div');
+  modeWrap.className = 'ms-mode-toggle';
+  ['include','exclude'].forEach(function(mode){
+    var btn = document.createElement('button');
+    btn.className = 'ms-mode-opt' + (f.mode===mode ? ' on' : '');
+    btn.dataset.mode = mode;
+    btn.textContent = mode.charAt(0).toUpperCase()+mode.slice(1);
+    btn.onclick = function(e){ e.stopPropagation(); setMode(dim, mode); };
+    modeWrap.appendChild(btn);
+  });
+  container.appendChild(modeWrap);
+
   values.forEach(function(v){
     var label = document.createElement('label');
     label.className = 'ms-option';
@@ -389,6 +398,15 @@ function buildMsDropdown(dim, values){
   clearDiv.onclick = function(){ msClearDim(dim); };
   container.appendChild(clearDiv);
 }
+function setMode(dim, mode){
+  filters[dim].mode = mode;
+  var container = document.getElementById('msdrop-'+dim);
+  container.querySelectorAll('.ms-mode-opt').forEach(function(b){
+    b.classList.toggle('on', b.dataset.mode===mode);
+  });
+  updateMsLabel(dim);
+  applyFilters();
+}
 function msCheckboxChange(dim, value, checked){
   var f = filters[dim];
   if(checked) f.values.add(value); else f.values.delete(value);
@@ -404,9 +422,10 @@ function msClearDim(dim){
 function updateMsLabel(dim){
   var f = filters[dim];
   var el = document.getElementById('mslabel-'+dim);
+  var prefix = f.mode==='exclude' ? 'Not: ' : '';
   if(f.values.size===0) el.textContent = 'All';
-  else if(f.values.size===1) el.textContent = Array.from(f.values)[0];
-  else el.textContent = f.values.size+' selected';
+  else if(f.values.size===1) el.textContent = prefix + Array.from(f.values)[0];
+  else el.textContent = prefix + f.values.size + ' selected';
 }
 function toggleMsOpen(dim){
   var wrap = document.getElementById('mswrap-'+dim);
@@ -419,14 +438,6 @@ document.addEventListener('click', function(e){
     document.querySelectorAll('.ms-wrap.open').forEach(function(w){ w.classList.remove('open'); });
   }
 });
-function toggleMode(dim){
-  var f = filters[dim];
-  f.mode = f.mode==='include' ? 'exclude' : 'include';
-  var btn = document.getElementById('mode-'+dim);
-  btn.textContent = f.mode==='include' ? 'Include' : 'Exclude';
-  btn.classList.toggle('exclude-mode', f.mode==='exclude');
-  applyFilters();
-}
 // Used by chart click-to-filter — toggles a value and keeps the checkbox UI in sync
 function toggleFilterValue(dim, value){
   var f = filters[dim];
@@ -437,31 +448,117 @@ function toggleFilterValue(dim, value){
   applyFilters();
 }
 
-// ── Date presets + relative range (anchored to latest data date, not real "today") ──
-function clearPresetHighlight(){
-  document.querySelectorAll('.preset-btn').forEach(function(b){ b.classList.remove('on'); });
+// ── Date filter dropdown: 8 presets + custom range + relative range ────
+// All anchored to the latest filing date actually in the data, not real "today".
+function buildDateDropdown(){
+  var container = document.getElementById('msdrop-date');
+  container.innerHTML = '';
+
+  var presets = [
+    ['this_year','This Year'], ['prev_year','Previous Year'],
+    ['ytd','YTD'], ['prev_ytd','Previous YTD'],
+    ['this_quarter','This Quarter'], ['prev_quarter','Previous Quarter'],
+    ['this_month','This Month'], ['prev_month','Previous Month']
+  ];
+  presets.forEach(function(p){
+    var opt = document.createElement('div');
+    opt.className = 'ms-option';
+    opt.id = 'dateopt-'+p[0];
+    opt.textContent = p[1];
+    opt.onclick = function(){ setDatePreset(p[0], p[1]); };
+    container.appendChild(opt);
+  });
+
+  var divider = document.createElement('div');
+  divider.className = 'ms-divider';
+  container.appendChild(divider);
+
+  var customOpt = document.createElement('div');
+  customOpt.className = 'ms-option';
+  customOpt.textContent = 'Custom Range\u2026';
+  customOpt.onclick = function(e){ e.stopPropagation(); toggleCustomSection(); };
+  container.appendChild(customOpt);
+
+  var customSection = document.createElement('div');
+  customSection.className = 'ms-custom-section';
+  customSection.id = 'date-custom-section';
+  customSection.style.display = 'none';
+  customSection.innerHTML =
+    '<div class="ms-custom-row"><label>From</label><input type="date" id="f-from"></div>'+
+    '<div class="ms-custom-row"><label>To</label><input type="date" id="f-to"></div>'+
+    '<div class="ms-divider" style="margin:2px 0"></div>'+
+    '<div class="ms-custom-row">'+
+      '<input type="number" id="rel-from-val" min="0" placeholder="3">'+
+      '<select id="rel-from-unit"><option value="years">Years</option><option value="months">Months</option><option value="days">Days</option></select>'+
+      '<span>&rarr;</span>'+
+      '<input type="number" id="rel-to-val" min="0" placeholder="1">'+
+      '<select id="rel-to-unit"><option value="years">Years</option><option value="months">Months</option><option value="days">Days</option></select>'+
+    '</div>'+
+    '<div class="ms-custom-row"><button onclick="applyRelativeRange()">Apply Relative</button><button onclick="applyCustomDates()">Apply Dates</button></div>';
+  container.appendChild(customSection);
+
+  var clearDiv = document.createElement('div');
+  clearDiv.className = 'ms-clear';
+  clearDiv.textContent = 'Clear';
+  clearDiv.onclick = function(e){ e.stopPropagation(); clearDateFilter(); };
+  container.appendChild(clearDiv);
+
+  document.getElementById('f-from').addEventListener('change', function(){ markCustomDate(); applyFilters(); });
+  document.getElementById('f-to').addEventListener('change', function(){ markCustomDate(); applyFilters(); });
 }
-function setDatePreset(preset){
+function toggleCustomSection(){
+  var sec = document.getElementById('date-custom-section');
+  sec.style.display = sec.style.display==='none' ? 'flex' : 'none';
+}
+function markCustomDate(){
+  document.querySelectorAll('#msdrop-date .ms-option').forEach(function(o){ o.classList.remove('on'); });
+  document.getElementById('mslabel-date').textContent = 'Custom';
+}
+function applyCustomDates(){
+  markCustomDate();
+  applyFilters();
+}
+function setDatePreset(preset, label){
   var ay = parseInt(ANCHOR_DATE.slice(0,4),10);
   var am = parseInt(ANCHOR_DATE.slice(5,7),10);
   var from='', to='';
   if(preset==='this_year'){ from = ay+'-01-01'; to = ay+'-12-31'; }
   else if(preset==='prev_year'){ from = (ay-1)+'-01-01'; to = (ay-1)+'-12-31'; }
   else if(preset==='ytd'){ from = ay+'-01-01'; to = ANCHOR_DATE; }
-  else if(preset==='quarter'){
+  else if(preset==='prev_ytd'){
+    from = (ay-1)+'-01-01';
+    to = (ay-1)+'-'+ANCHOR_DATE.slice(5,7)+'-'+ANCHOR_DATE.slice(8,10);
+  }
+  else if(preset==='this_quarter'){
     var q = Math.floor((am-1)/3);
     var qStartMonth = q*3+1, qEndMonth = q*3+3;
     from = ay+'-'+pad2(qStartMonth)+'-01';
     to = ay+'-'+pad2(qEndMonth)+'-'+pad2(lastDayOfMonth(ay,qEndMonth));
   }
-  else if(preset==='month'){
+  else if(preset==='prev_quarter'){
+    var q2 = Math.floor((am-1)/3) - 1, y2 = ay;
+    if(q2<0){ q2 = 3; y2 = ay-1; }
+    var qStartMonth2 = q2*3+1, qEndMonth2 = q2*3+3;
+    from = y2+'-'+pad2(qStartMonth2)+'-01';
+    to = y2+'-'+pad2(qEndMonth2)+'-'+pad2(lastDayOfMonth(y2,qEndMonth2));
+  }
+  else if(preset==='this_month'){
     from = ay+'-'+pad2(am)+'-01';
     to = ay+'-'+pad2(am)+'-'+pad2(lastDayOfMonth(ay,am));
   }
+  else if(preset==='prev_month'){
+    var pm = am-1, py = ay;
+    if(pm<1){ pm=12; py=ay-1; }
+    from = py+'-'+pad2(pm)+'-01';
+    to = py+'-'+pad2(pm)+'-'+pad2(lastDayOfMonth(py,pm));
+  }
   document.getElementById('f-from').value = from;
   document.getElementById('f-to').value = to;
-  clearPresetHighlight();
-  document.getElementById('preset-'+preset).classList.add('on');
+  document.querySelectorAll('#msdrop-date .ms-option').forEach(function(o){ o.classList.remove('on'); });
+  var activeOpt = document.getElementById('dateopt-'+preset);
+  if(activeOpt) activeOpt.classList.add('on');
+  document.getElementById('mslabel-date').textContent = label;
+  toggleMsOpen('date');
   applyFilters();
 }
 function subtractFromAnchor(n, unit){
@@ -483,28 +580,29 @@ function applyRelativeRange(){
   var to = fromDate < toDate ? toDate : fromDate;
   document.getElementById('f-from').value = from;
   document.getElementById('f-to').value = to;
-  clearPresetHighlight();
+  markCustomDate();
+  applyFilters();
+}
+function clearDateFilter(){
+  document.getElementById('f-from').value = '';
+  document.getElementById('f-to').value = '';
+  document.getElementById('rel-from-val').value = '';
+  document.getElementById('rel-to-val').value = '';
+  document.querySelectorAll('#msdrop-date .ms-option').forEach(function(o){ o.classList.remove('on'); });
+  document.getElementById('mslabel-date').textContent = 'All';
   applyFilters();
 }
 
 // ── Filter state + top-level clear ─────────────────────────────────────
 function clearFilters(){
-  document.getElementById('f-from').value = '';
-  document.getElementById('f-to').value = '';
   document.getElementById('f-company').value = '';
-  document.getElementById('rel-from-val').value = '';
-  document.getElementById('rel-to-val').value = '';
-  clearPresetHighlight();
   DIM_ORDER.forEach(function(dim){
     filters[dim].values.clear();
     filters[dim].mode = 'include';
-    var btn = document.getElementById('mode-'+dim);
-    btn.textContent = 'Include';
-    btn.classList.remove('exclude-mode');
     buildMsDropdown(dim, FACET_VALUES[dim]);
     updateMsLabel(dim);
   });
-  applyFilters();
+  clearDateFilter();
 }
 
 function applyFilters(){
@@ -622,15 +720,16 @@ function recomputeAndRender(){
 
 // ── Choropleth map (green now hit at 30%, not 100% — matches what counts as "good" share here) ──
 function pinsColor(pct){
-  var effective = Math.min(pct, 30);
+  var MAX = 60; // full green saturation point — 30% (MAX/2) is where the gradient starts turning green
+  var effective = Math.min(pct, MAX);
   var r,g,b;
-  if(effective <= 15){
-    var t = effective/15;
+  if(effective <= MAX/2){
+    var t = effective/(MAX/2);
     r = Math.round(231 + t*(200-231));
     g = Math.round(76 + t*(162-76));
     b = Math.round(60 + t*(0-60));
   } else {
-    var t2 = (effective-15)/15;
+    var t2 = (effective-MAX/2)/(MAX/2);
     r = Math.round(200 + t2*(46-200));
     g = Math.round(162 + t2*(204-162));
     b = Math.round(0 + t2*(113-0));
@@ -753,8 +852,6 @@ function debouncedApply(){
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(applyFilters, 150);
 }
-document.getElementById('f-from').addEventListener('change', function(){ clearPresetHighlight(); applyFilters(); });
-document.getElementById('f-to').addEventListener('change', function(){ clearPresetHighlight(); applyFilters(); });
 document.getElementById('f-company').addEventListener('input', debouncedApply);
 
 // filters.county doesn't have a top-level picklist UI (it's only ever set via chart/map

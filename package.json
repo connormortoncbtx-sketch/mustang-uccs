@@ -4,7 +4,7 @@
   "description": "UCCs deep-dive tool — Mustang HUD",
   "type": "module",
   "scripts": {
-    "push": "node scripts/push.js"
+    "push": "node push.js"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",

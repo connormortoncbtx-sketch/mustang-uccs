@@ -12,9 +12,15 @@
 
 import { createClient } from '@libsql/client/web';
 
+console.log('DEBUG env check:', {
+  hasUrl: !!process.env.TURSO_DATABASE_URL,
+  hasToken: !!process.env.TURSO_AUTH_TOKEN,
+  urlPrefix: (process.env.TURSO_DATABASE_URL || '').slice(0, 12)
+});
+
 const client = createClient({
-  url: process.env.SALES_FUNNEL_TURSO_URL,
-  authToken: process.env.SALES_FUNNEL_TURSO_TOKEN
+  url: process.env.TURSO_DATABASE_URL,
+  authToken: process.env.TURSO_AUTH_TOKEN
 });
 
 function json(body, status = 200) {

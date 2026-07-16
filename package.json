@@ -4,6 +4,7 @@
   "description": "UCCs deep-dive tool — Mustang HUD",
   "type": "module",
   "dependencies": {
-    "@libsql/client": "^0.14.0"
+    "@libsql/client": "^0.14.0",
+    "xlsx": "^0.18.5"
   }
 }

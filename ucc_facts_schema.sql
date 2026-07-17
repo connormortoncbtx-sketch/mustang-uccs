@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS ucc_facts (
     row_hash            TEXT,           -- hash of mutable fields, for incremental upsert change-detection
     updated_at          TEXT,
 
-    UNIQUE(serial, filing_date, manufacturer)  -- natural key, matches ExcaVision's proven ucc_filings key
+    UNIQUE(serial, filing_date)  -- one row per physical unit per sale event; manufacturer is
+                                 -- redundant with serial, and same-day new->used resale of the
+                                 -- same serial is treated as effectively impossible
 );
 
 CREATE INDEX IF NOT EXISTS idx_ucc_company     ON ucc_facts(company);

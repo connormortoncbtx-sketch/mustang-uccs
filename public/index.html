@@ -158,7 +158,37 @@ tbody tr.faded{opacity:.32}
   letter-spacing:.06em;text-transform:uppercase;color:var(--tx-dim);
 }
 
-@media(max-width:1000px){ .tiles,.row2{grid-template-columns:1fr} }
+.pill-toggle-group{display:flex;gap:4px}
+.pill-toggle{
+  background:var(--s2);border:1px solid var(--bd);color:var(--tx-dim);
+  padding:6px 10px;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;
+  font-size:.7rem;letter-spacing:.03em;text-transform:uppercase;cursor:pointer;
+}
+.pill-toggle:hover{color:var(--tx);border-color:var(--tx-dim)}
+.pill-toggle.on{background:var(--acc);border-color:var(--acc);color:#fff}
+
+.count-range{display:flex;gap:4px;align-items:center}
+.count-range select{padding:7px 6px;font-size:.74rem;min-width:0}
+.count-range input[type=number]{width:52px;min-width:52px}
+
+.pie-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.pie-legend{display:flex;flex-direction:column;gap:6px;font-size:.74rem;color:var(--tx-dim)}
+.pie-legend-item{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pie-swatch{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+.line-chart-toggle{display:flex;gap:4px;margin-bottom:10px}
+.line-chart-toggle button{
+  background:var(--s2);border:1px solid var(--bd);color:var(--tx-dim);
+  padding:5px 10px;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;
+  font-size:.68rem;letter-spacing:.03em;text-transform:uppercase;cursor:pointer;
+}
+.line-chart-toggle button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+
+.group-table .grp-row td{font-weight:700;background:var(--s2);border-top:1px solid var(--bd)}
+.group-table .sub-row td{color:var(--tx-dim);font-size:.75rem}
+.group-table .sub-row td:first-child{padding-left:24px}
+
+@media(max-width:1000px){ .tiles,.row2{grid-template-columns:1fr} .pie-grid{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -174,12 +204,13 @@ tbody tr.faded{opacity:.32}
 </header>
 
 <div class="tabs">
-  <button class="tab-btn on">PINS Overview</button>
-  <button class="tab-btn disabled">Tab 2 (coming soon)</button>
+  <button class="tab-btn on" id="tabbtn-1" onclick="showTab(1)">PINS Overview</button>
+  <button class="tab-btn" id="tabbtn-2" onclick="showTab(2)">Company Analysis</button>
   <button class="tab-btn disabled">Tab 3 (coming soon)</button>
 </div>
 
 <main>
+<div id="tab1-content">
   <div class="filters">
     <div class="filters-row">
       <div class="fgrp"><label>Filing Date</label>
@@ -257,6 +288,108 @@ tbody tr.faded{opacity:.32}
       <button id="pager-next" onclick="pageNext()" disabled>Next &rarr;</button>
     </div>
   </div>
+</div>
+
+<div id="tab2-content" style="display:none">
+  <div class="filters">
+    <div class="filters-row">
+      <div class="fgrp"><label>Filing Date</label>
+        <div class="ms-wrap" id="mswrap-t2date">
+          <div class="ms-box" onclick="t2ToggleMsOpen('t2date')"><div class="ms-display" id="mslabel-t2date">All</div></div>
+          <div class="ms-dropdown" id="msdrop-t2date"></div>
+        </div>
+      </div>
+      <div id="t2-picklist-filters" style="display:contents"></div>
+      <div class="fgrp"><label>Company</label><input type="text" id="t2-f-company" placeholder="Search company"></div>
+      <div class="fgrp"><label>Buyer ID</label><input type="text" id="t2-f-buyerid" placeholder="Search buyer ID"></div>
+    </div>
+    <div class="filters-row">
+      <div class="fgrp"><label>5-Yr Sales Count</label>
+        <div class="count-range">
+          <select id="t2-count-mode" onchange="t2CountModeChange()">
+            <option value="min">Min</option>
+            <option value="max">Max</option>
+            <option value="range">Range</option>
+          </select>
+          <input type="number" id="t2-count-from" min="0" placeholder="0">
+          <span id="t2-count-to-wrap" style="display:none;align-items:center;gap:4px">
+            <span>&rarr;</span><input type="number" id="t2-count-to" min="0" placeholder="99">
+          </span>
+        </div>
+      </div>
+      <div class="fgrp"><label>Sales Segment</label>
+        <div class="pill-toggle-group" id="t2-bucket-toggles">
+          <button class="pill-toggle" data-val="1" onclick="t2TogglePill('bucket_set','1',this)">1 Unit</button>
+          <button class="pill-toggle" data-val="2-5" onclick="t2TogglePill('bucket_set','2-5',this)">2-5 Units</button>
+          <button class="pill-toggle" data-val="5+" onclick="t2TogglePill('bucket_set','5+',this)">5+ Units</button>
+        </div>
+      </div>
+      <div class="fgrp"><label>Customer Status</label>
+        <div class="pill-toggle-group" id="t2-newexist-toggles">
+          <button class="pill-toggle" data-val="New" onclick="t2TogglePill('new_existing_set','New',this)">New</button>
+          <button class="pill-toggle" data-val="Existing" onclick="t2TogglePill('new_existing_set','Existing',this)">Existing</button>
+        </div>
+      </div>
+      <div class="fgrp"><label>ERP Match</label>
+        <div class="pill-toggle-group" id="t2-known-toggles">
+          <button class="pill-toggle" data-val="Known" onclick="t2TogglePill('known_set','Known',this)">Known</button>
+          <button class="pill-toggle" data-val="Unknown" onclick="t2TogglePill('known_set','Unknown',this)">Unknown</button>
+        </div>
+      </div>
+      <button class="ghost" onclick="t2ClearFilters()">Clear All</button>
+    </div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile cat"><div class="lbl">CAT</div><div class="val" id="t2-tile-cat">—</div></div>
+    <div class="tile"><div class="lbl">Industry</div><div class="val" id="t2-tile-industry">—</div></div>
+    <div class="tile pins"><div class="lbl">PINS %</div><div class="val" id="t2-tile-pins">—</div></div>
+  </div>
+
+  <div class="row2">
+    <div class="panel">
+      <div class="ptitle">Units Over Time</div>
+      <div class="line-chart-toggle">
+        <button id="t2-linebtn-month" class="on" onclick="t2SetLineMode('month')">Monthly</button>
+        <button id="t2-linebtn-week" onclick="t2SetLineMode('week')">Weekly</button>
+      </div>
+      <svg id="t2-line-svg" viewBox="0 0 560 240" style="width:100%;height:auto"></svg>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Buyer ID &rarr; Company Breakdown</div>
+      <div class="scroll-table" style="max-height:400px">
+        <table class="group-table">
+          <thead id="t2-group-thead"></thead>
+          <tbody id="t2-group-table"><tr><td colspan="5" class="loading">Loading&hellip;</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="pie-grid">
+    <div class="panel"><div class="ptitle">New vs Existing Customers</div><div id="pie-newexist-cust"></div></div>
+    <div class="panel"><div class="ptitle">Customer Purchase Segments</div><div id="pie-segments"></div></div>
+    <div class="panel"><div class="ptitle">Known vs Unknown Customers</div><div id="pie-known-cust"></div></div>
+    <div class="panel"><div class="ptitle">New Customers by Manufacturer</div><div id="pie-new-mfr"></div></div>
+    <div class="panel"><div class="ptitle">New vs Existing Machines</div><div id="pie-newexist-mach"></div></div>
+    <div class="panel"><div class="ptitle">Known vs Unknown Machines</div><div id="pie-known-mach"></div></div>
+  </div>
+
+  <div class="row2" style="grid-template-columns:1fr 1fr">
+    <div class="panel">
+      <div class="ptitle">Average Days Between Purchases (by Buyer)</div>
+      <div class="scroll-table" id="bar-avg-days" style="max-height:360px"><div class="loading">Loading&hellip;</div></div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">Sales by Manufacturer</div>
+      <div class="scroll-table" id="bar-mfr-t2" style="max-height:360px"><div class="loading">Loading&hellip;</div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ptitle">Sales by Product Family</div>
+    <div class="scroll-table" id="bar-product-family" style="max-height:360px"><div class="loading">Loading&hellip;</div></div>
+  </div>
+</div>
 </main>
 
 <div class="tooltip" id="tooltip"></div>
@@ -951,6 +1084,568 @@ function exportToExcel(){
   } finally {
     btn.textContent = origText; btn.disabled = false;
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// TAB 2 — Company Analysis
+// ═══════════════════════════════════════════════════════════════════════
+var t2Initialized = false;
+var T2_DIM_ORDER = ['manufacturer','new_used','equipment_description','county'];
+var T2_DIM_LABELS = { manufacturer:'Manufacturer', new_used:'New / Used', equipment_description:'Equipment Description', county:'County' };
+var T2_FACET_VALUES = {};
+var filters2 = {
+  manufacturer: {mode:'include', values:new Set()},
+  new_used: {mode:'include', values:new Set()},
+  equipment_description: {mode:'include', values:new Set()},
+  county: {mode:'include', values:new Set()},
+  company: '',
+  buyer_id: '',
+  date_from: '',
+  date_to: '',
+  bucket_set: new Set(),
+  new_existing_set: new Set(),
+  known_set: new Set(),
+  count_mode: 'min',
+  count_from: null,
+  count_to: null
+};
+var t2CurrentFiltered = [];
+var t2LineMode = 'month';
+var t2GroupSort = {col:'industry', dir:'desc'};
+var PIE_COLORS = ['#22a186','#f5a623','#5b9bd5','#9b7cd4','#e0605a','#43b06a','#7a828d','#c98a00'];
+
+function showTab(n){
+  document.getElementById('tab1-content').style.display = n===1 ? '' : 'none';
+  document.getElementById('tab2-content').style.display = n===2 ? '' : 'none';
+  document.getElementById('tabbtn-1').classList.toggle('on', n===1);
+  document.getElementById('tabbtn-2').classList.toggle('on', n===2);
+  if(n===2 && !t2Initialized){ initTab2(); t2Initialized = true; }
+}
+
+function initTab2(){
+  t2BuildDateDropdown();
+  t2BuildPicklistFilters();
+  t2PopulateFacets();
+  document.getElementById('t2-f-company').addEventListener('input', t2Debounced);
+  document.getElementById('t2-f-buyerid').addEventListener('input', t2Debounced);
+  document.getElementById('t2-count-from').addEventListener('change', t2ApplyFilters);
+  document.getElementById('t2-count-to').addEventListener('change', t2ApplyFilters);
+  t2ApplyFilters();
+}
+var t2DebounceTimer = null;
+function t2Debounced(){ clearTimeout(t2DebounceTimer); t2DebounceTimer = setTimeout(t2ApplyFilters, 150); }
+
+// ── Tab 2 picklist filters (manufacturer / new_used / equipment / county) ─
+function t2PopulateFacets(){
+  var sets = {};
+  T2_DIM_ORDER.forEach(function(d){ sets[d] = {}; });
+  ALL_ROWS.forEach(function(r){
+    T2_DIM_ORDER.forEach(function(d){ if(r[d]) sets[d][r[d]] = 1; });
+  });
+  T2_DIM_ORDER.forEach(function(d){
+    T2_FACET_VALUES[d] = Object.keys(sets[d]).sort();
+    t2BuildMsDropdown(d, T2_FACET_VALUES[d]);
+    t2UpdateMsLabel(d);
+  });
+}
+function t2BuildPicklistFilters(){
+  var html = T2_DIM_ORDER.map(function(dim){
+    return '<div class="fgrp">'
+      + '<label>'+T2_DIM_LABELS[dim]+'</label>'
+      + '<div class="ms-wrap" id="mswrap-t2'+dim+'">'
+        + '<div class="ms-box" onclick="t2ToggleMsOpen(\'t2'+dim+'\')"><div class="ms-display" id="mslabel-t2'+dim+'">All</div></div>'
+        + '<div class="ms-dropdown" id="msdrop-t2'+dim+'"></div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+  document.getElementById('t2-picklist-filters').innerHTML = html;
+}
+function t2BuildMsDropdown(dim, values){
+  var container = document.getElementById('msdrop-t2'+dim);
+  container.innerHTML = '';
+  var f = filters2[dim];
+
+  var modeWrap = document.createElement('div');
+  modeWrap.className = 'ms-mode-toggle';
+  ['include','exclude'].forEach(function(mode){
+    var btn = document.createElement('button');
+    btn.className = 'ms-mode-opt' + (f.mode===mode ? ' on' : '');
+    btn.dataset.mode = mode;
+    btn.textContent = mode.charAt(0).toUpperCase()+mode.slice(1);
+    btn.onclick = function(e){ e.stopPropagation(); t2SetMode(dim, mode); };
+    modeWrap.appendChild(btn);
+  });
+  container.appendChild(modeWrap);
+
+  values.forEach(function(v){
+    var label = document.createElement('label');
+    label.className = 'ms-option';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = f.values.has(v);
+    cb.dataset.value = v;
+    cb.addEventListener('change', function(){ t2MsCheckboxChange(dim, v, cb.checked); });
+    var span = document.createElement('span');
+    span.textContent = v;
+    label.appendChild(cb);
+    label.appendChild(span);
+    container.appendChild(label);
+  });
+  var clearDiv = document.createElement('div');
+  clearDiv.className = 'ms-clear';
+  clearDiv.textContent = 'Clear';
+  clearDiv.onclick = function(){ t2MsClearDim(dim); };
+  container.appendChild(clearDiv);
+}
+function t2SetMode(dim, mode){
+  filters2[dim].mode = mode;
+  var container = document.getElementById('msdrop-t2'+dim);
+  container.querySelectorAll('.ms-mode-opt').forEach(function(b){ b.classList.toggle('on', b.dataset.mode===mode); });
+  t2UpdateMsLabel(dim);
+  t2ApplyFilters();
+}
+function t2MsCheckboxChange(dim, value, checked){
+  var f = filters2[dim];
+  if(checked) f.values.add(value); else f.values.delete(value);
+  t2UpdateMsLabel(dim);
+  t2ApplyFilters();
+}
+function t2MsClearDim(dim){
+  filters2[dim].values.clear();
+  t2BuildMsDropdown(dim, T2_FACET_VALUES[dim]);
+  t2UpdateMsLabel(dim);
+  t2ApplyFilters();
+}
+function t2UpdateMsLabel(dim){
+  var f = filters2[dim];
+  var el = document.getElementById('mslabel-t2'+dim);
+  if(!el) return;
+  var prefix = f.mode==='exclude' ? 'Not: ' : '';
+  if(f.values.size===0) el.textContent = 'All';
+  else if(f.values.size===1) el.textContent = prefix + Array.from(f.values)[0];
+  else el.textContent = prefix + f.values.size + ' selected';
+}
+function t2ToggleMsOpen(id){
+  var wrap = document.getElementById('mswrap-'+id);
+  var isOpen = wrap.classList.contains('open');
+  document.querySelectorAll('.ms-wrap.open').forEach(function(w){ w.classList.remove('open'); });
+  if(!isOpen) wrap.classList.add('open');
+}
+
+// ── Tab 2 date dropdown (mirrors tab 1's, independent state) ────────────
+function t2BuildDateDropdown(){
+  var container = document.getElementById('msdrop-t2date');
+  container.innerHTML = '';
+  var presets = [
+    ['this_year','This Year'], ['prev_year','Previous Year'],
+    ['ytd','YTD'], ['prev_ytd','Previous YTD'],
+    ['this_quarter','This Quarter'], ['prev_quarter','Previous Quarter'],
+    ['this_month','This Month'], ['prev_month','Previous Month']
+  ];
+  presets.forEach(function(p){
+    var opt = document.createElement('div');
+    opt.className = 'ms-option';
+    opt.id = 't2dateopt-'+p[0];
+    opt.textContent = p[1];
+    opt.onclick = function(){ t2SetDatePreset(p[0], p[1]); };
+    container.appendChild(opt);
+  });
+  var divider = document.createElement('div');
+  divider.className = 'ms-divider';
+  container.appendChild(divider);
+  var customOpt = document.createElement('div');
+  customOpt.className = 'ms-option';
+  customOpt.textContent = 'Custom Range\u2026';
+  customOpt.onclick = function(e){ e.stopPropagation(); var s=document.getElementById('t2-date-custom'); s.style.display = s.style.display==='none'?'flex':'none'; };
+  container.appendChild(customOpt);
+  var customSection = document.createElement('div');
+  customSection.className = 'ms-custom-section';
+  customSection.id = 't2-date-custom';
+  customSection.style.display = 'none';
+  customSection.innerHTML =
+    '<div class="ms-custom-row"><label>From</label><input type="date" id="t2-f-from"></div>'+
+    '<div class="ms-custom-row"><label>To</label><input type="date" id="t2-f-to"></div>';
+  container.appendChild(customSection);
+  var clearDiv = document.createElement('div');
+  clearDiv.className = 'ms-clear';
+  clearDiv.textContent = 'Clear';
+  clearDiv.onclick = function(e){ e.stopPropagation(); t2ClearDateFilter(); };
+  container.appendChild(clearDiv);
+  document.getElementById('t2-f-from').addEventListener('change', function(){ t2MarkCustomDate(); t2ApplyFilters(); });
+  document.getElementById('t2-f-to').addEventListener('change', function(){ t2MarkCustomDate(); t2ApplyFilters(); });
+}
+function t2MarkCustomDate(){
+  document.querySelectorAll('#msdrop-t2date .ms-option').forEach(function(o){ o.classList.remove('on'); });
+  document.getElementById('mslabel-t2date').textContent = 'Custom';
+}
+function t2SetDatePreset(preset, label){
+  var ay = parseInt(ANCHOR_DATE.slice(0,4),10);
+  var am = parseInt(ANCHOR_DATE.slice(5,7),10);
+  var from='', to='';
+  if(preset==='this_year'){ from = ay+'-01-01'; to = ay+'-12-31'; }
+  else if(preset==='prev_year'){ from = (ay-1)+'-01-01'; to = (ay-1)+'-12-31'; }
+  else if(preset==='ytd'){ from = ay+'-01-01'; to = ANCHOR_DATE; }
+  else if(preset==='prev_ytd'){ from = (ay-1)+'-01-01'; to = (ay-1)+'-'+ANCHOR_DATE.slice(5,7)+'-'+ANCHOR_DATE.slice(8,10); }
+  else if(preset==='this_quarter'){
+    var q = Math.floor((am-1)/3), qs=q*3+1, qe=q*3+3;
+    from = ay+'-'+pad2(qs)+'-01'; to = ay+'-'+pad2(qe)+'-'+pad2(lastDayOfMonth(ay,qe));
+  }
+  else if(preset==='prev_quarter'){
+    var q2=Math.floor((am-1)/3)-1, y2=ay; if(q2<0){q2=3;y2=ay-1;}
+    var qs2=q2*3+1, qe2=q2*3+3;
+    from = y2+'-'+pad2(qs2)+'-01'; to = y2+'-'+pad2(qe2)+'-'+pad2(lastDayOfMonth(y2,qe2));
+  }
+  else if(preset==='this_month'){ from = ay+'-'+pad2(am)+'-01'; to = ay+'-'+pad2(am)+'-'+pad2(lastDayOfMonth(ay,am)); }
+  else if(preset==='prev_month'){
+    var pm=am-1, py=ay; if(pm<1){pm=12;py=ay-1;}
+    from = py+'-'+pad2(pm)+'-01'; to = py+'-'+pad2(pm)+'-'+pad2(lastDayOfMonth(py,pm));
+  }
+  document.getElementById('t2-f-from').value = from;
+  document.getElementById('t2-f-to').value = to;
+  document.querySelectorAll('#msdrop-t2date .ms-option').forEach(function(o){ o.classList.remove('on'); });
+  var opt = document.getElementById('t2dateopt-'+preset);
+  if(opt) opt.classList.add('on');
+  document.getElementById('mslabel-t2date').textContent = label;
+  t2ToggleMsOpen('t2date');
+  t2ApplyFilters();
+}
+function t2ClearDateFilter(){
+  document.getElementById('t2-f-from').value = '';
+  document.getElementById('t2-f-to').value = '';
+  document.querySelectorAll('#msdrop-t2date .ms-option').forEach(function(o){ o.classList.remove('on'); });
+  document.getElementById('mslabel-t2date').textContent = 'All';
+  t2ApplyFilters();
+}
+
+// ── Pill toggles (sales segment / customer status / ERP match) ─────────
+function t2TogglePill(setKey, value, btn){
+  var s = filters2[setKey];
+  if(s.has(value)) s.delete(value); else s.add(value);
+  btn.classList.toggle('on', s.has(value));
+  t2ApplyFilters();
+}
+function t2CountModeChange(){
+  var mode = document.getElementById('t2-count-mode').value;
+  filters2.count_mode = mode;
+  document.getElementById('t2-count-to-wrap').style.display = mode==='range' ? 'flex' : 'none';
+  t2ApplyFilters();
+}
+function t2ClearFilters(){
+  document.getElementById('t2-f-company').value = '';
+  document.getElementById('t2-f-buyerid').value = '';
+  document.getElementById('t2-count-from').value = '';
+  document.getElementById('t2-count-to').value = '';
+  document.getElementById('t2-count-mode').value = 'min';
+  filters2.count_mode = 'min';
+  document.getElementById('t2-count-to-wrap').style.display = 'none';
+  T2_DIM_ORDER.forEach(function(dim){
+    filters2[dim].values.clear();
+    filters2[dim].mode = 'include';
+    t2BuildMsDropdown(dim, T2_FACET_VALUES[dim]);
+    t2UpdateMsLabel(dim);
+  });
+  filters2.bucket_set.clear();
+  filters2.new_existing_set.clear();
+  filters2.known_set.clear();
+  document.querySelectorAll('.pill-toggle').forEach(function(b){ b.classList.remove('on'); });
+  t2ClearDateFilter();
+}
+
+// ── Filtering ────────────────────────────────────────────────────────────
+function t2Matches(r){
+  var fFrom = filters2.date_from, fTo = filters2.date_to;
+  if(fFrom && (!r.filing_date || r.filing_date < fFrom)) return false;
+  if(fTo && (!r.filing_date || r.filing_date > fTo)) return false;
+  if(filters2.company && (!r.company || r.company.toLowerCase().indexOf(filters2.company) === -1)) return false;
+  if(filters2.buyer_id && (!r.buyer_id || r.buyer_id.toLowerCase().indexOf(filters2.buyer_id) === -1)) return false;
+  if(!passesDimension(r.manufacturer, filters2.manufacturer)) return false;
+  if(!passesDimension(r.new_used, filters2.new_used)) return false;
+  if(!passesDimension(r.equipment_description, filters2.equipment_description)) return false;
+  if(!passesDimension(r.county, filters2.county)) return false;
+  if(filters2.bucket_set.size && !filters2.bucket_set.has(r.sales_bucket)) return false;
+  if(filters2.new_existing_set.size && !filters2.new_existing_set.has(r.new_existing)) return false;
+  if(filters2.known_set.size && !filters2.known_set.has(r.known_unknown)) return false;
+  if(filters2.count_from!=null || filters2.count_to!=null){
+    var cnt = parseFloat(r.sales_count_5yr);
+    if(isNaN(cnt)) return false;
+    if(filters2.count_mode==='min' && filters2.count_from!=null && cnt < filters2.count_from) return false;
+    if(filters2.count_mode==='max' && filters2.count_from!=null && cnt > filters2.count_from) return false;
+    if(filters2.count_mode==='range'){
+      if(filters2.count_from!=null && cnt < filters2.count_from) return false;
+      if(filters2.count_to!=null && cnt > filters2.count_to) return false;
+    }
+  }
+  return true;
+}
+function t2ApplyFilters(){
+  filters2.date_from = document.getElementById('t2-f-from').value;
+  filters2.date_to = document.getElementById('t2-f-to').value;
+  filters2.company = document.getElementById('t2-f-company').value.trim().toLowerCase();
+  filters2.buyer_id = document.getElementById('t2-f-buyerid').value.trim().toLowerCase();
+  var cf = document.getElementById('t2-count-from').value;
+  var ct = document.getElementById('t2-count-to').value;
+  filters2.count_from = cf!=='' ? parseFloat(cf) : null;
+  filters2.count_to = ct!=='' ? parseFloat(ct) : null;
+
+  t2CurrentFiltered = ALL_ROWS.filter(t2Matches);
+  t2Recompute();
+}
+
+// ── Recompute + render everything on Tab 2 ──────────────────────────────
+function t2Recompute(){
+  var cat=0, industry=t2CurrentFiltered.length;
+  t2CurrentFiltered.forEach(function(r){ if(r.manufacturer==='CAT') cat++; });
+  var pinsPct = industry ? Math.round(1000*cat/industry)/10 : 0;
+  document.getElementById('t2-tile-cat').textContent = fmtNum(cat);
+  document.getElementById('t2-tile-industry').textContent = fmtNum(industry);
+  document.getElementById('t2-tile-pins').textContent = pinsPct + '%';
+
+  t2RenderLineChart();
+  t2RenderGroupTable();
+  t2RenderPies();
+  t2RenderBars();
+}
+
+// ── Units over time (monthly/weekly line chart) ─────────────────────────
+function t2IsoWeek(dateStr){
+  var d = new Date(dateStr+'T00:00:00');
+  d.setHours(0,0,0,0);
+  d.setDate(d.getDate() + 3 - ((d.getDay()+6)%7));
+  var week1 = new Date(d.getFullYear(),0,4);
+  var weekNum = 1 + Math.round(((d - week1) / 86400000 - 3 + ((week1.getDay()+6)%7))/7);
+  return d.getFullYear() + '-W' + String(weekNum).padStart(2,'0');
+}
+function t2SetLineMode(mode){
+  t2LineMode = mode;
+  document.getElementById('t2-linebtn-month').classList.toggle('on', mode==='month');
+  document.getElementById('t2-linebtn-week').classList.toggle('on', mode==='week');
+  t2RenderLineChart();
+}
+function t2RenderLineChart(){
+  var buckets = {};
+  t2CurrentFiltered.forEach(function(r){
+    if(!r.filing_date) return;
+    var key = t2LineMode==='month' ? r.filing_date.slice(0,7) : t2IsoWeek(r.filing_date);
+    buckets[key] = (buckets[key]||0) + 1;
+  });
+  var keys = Object.keys(buckets).sort();
+  var svg = document.getElementById('t2-line-svg');
+  if(!keys.length){ svg.innerHTML = ''; return; }
+
+  var W=560, H=240, padL=40, padR=10, padT=14, padB=30;
+  var innerW = W-padL-padR, innerH = H-padT-padB;
+  var maxV = Math.max.apply(null, keys.map(function(k){return buckets[k];}));
+  var n = keys.length;
+  var pts = keys.map(function(k,i){
+    var x = padL + (n===1?innerW/2:(i/(n-1))*innerW);
+    var y = padT + innerH - (buckets[k]/maxV)*innerH;
+    return [x,y];
+  });
+  var pathD = pts.map(function(p,i){ return (i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1); }).join(' ');
+  var dots = pts.map(function(p,i){
+    return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="3" fill="'+"var(--acc-bright)"+'"><title>'+esc(keys[i])+': '+buckets[keys[i]]+'</title></circle>';
+  }).join('');
+  // sparse x labels to avoid crowding
+  var labelEvery = Math.max(1, Math.ceil(n/8));
+  var labels = keys.map(function(k,i){
+    if(i%labelEvery!==0 && i!==n-1) return '';
+    var x = pts[i][0];
+    return '<text x="'+x.toFixed(1)+'" y="'+(H-8)+'" font-size="9" fill="var(--tx-faint)" text-anchor="middle">'+esc(k)+'</text>';
+  }).join('');
+  var gridY = [0,0.25,0.5,0.75,1].map(function(f){
+    var y = padT + innerH*(1-f);
+    var v = Math.round(maxV*f);
+    return '<line x1="'+padL+'" y1="'+y.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+y.toFixed(1)+'" stroke="var(--bd)" stroke-width="1"></line>'+
+      '<text x="'+(padL-6)+'" y="'+(y+3).toFixed(1)+'" font-size="9" fill="var(--tx-faint)" text-anchor="end">'+v+'</text>';
+  }).join('');
+
+  svg.innerHTML = gridY +
+    '<path d="'+pathD+'" fill="none" stroke="var(--acc-bright)" stroke-width="2"></path>' +
+    dots + labels;
+}
+
+// ── Buyer ID -> Company grouped, sortable table ─────────────────────────
+function t2BuildGroups(){
+  var byBuyer = {};
+  t2CurrentFiltered.forEach(function(r){
+    var bid = r.buyer_id || '(no buyer id)';
+    if(!byBuyer[bid]) byBuyer[bid] = {buyer_id:bid, cat:0, industry:0, companies:{}};
+    var g = byBuyer[bid];
+    g.industry++; if(r.manufacturer==='CAT') g.cat++;
+    var comp = r.company || '(unknown)';
+    if(!g.companies[comp]) g.companies[comp] = {company:comp, cat:0, industry:0};
+    g.companies[comp].industry++; if(r.manufacturer==='CAT') g.companies[comp].cat++;
+  });
+  return Object.values(byBuyer).map(function(g){
+    g.pins_pct = g.industry ? Math.round(1000*g.cat/g.industry)/10 : 0;
+    g.companyList = Object.values(g.companies).map(function(c){
+      c.pins_pct = c.industry ? Math.round(1000*c.cat/c.industry)/10 : 0;
+      return c;
+    }).sort(function(a,b){ return b.industry - a.industry; });
+    delete g.companies;
+    return g;
+  });
+}
+function t2GroupSortToggle(col){
+  if(t2GroupSort.col===col){ t2GroupSort.dir = t2GroupSort.dir==='asc'?'desc':'asc'; }
+  else { t2GroupSort.col = col; t2GroupSort.dir = col==='buyer_id' ? 'asc' : 'desc'; }
+  t2RenderGroupTable();
+}
+function t2RenderGroupTable(){
+  var thead = document.getElementById('t2-group-thead');
+  thead.innerHTML = '<tr>'+
+    '<th onclick="t2GroupSortToggle(\'buyer_id\')">Buyer ID'+sortArrow(t2GroupSort,'buyer_id')+'</th>'+
+    '<th>Company</th>'+
+    '<th class="num" onclick="t2GroupSortToggle(\'cat\')">CAT'+sortArrow(t2GroupSort,'cat')+'</th>'+
+    '<th class="num" onclick="t2GroupSortToggle(\'industry\')">Industry'+sortArrow(t2GroupSort,'industry')+'</th>'+
+    '<th class="num" onclick="t2GroupSortToggle(\'pins_pct\')">PINS %'+sortArrow(t2GroupSort,'pins_pct')+'</th>'+
+  '</tr>';
+
+  var groups = sortRows(t2BuildGroups(), t2GroupSort.col, t2GroupSort.dir, t2GroupSort.col!=='buyer_id');
+  var body = document.getElementById('t2-group-table');
+  if(!groups.length){ body.innerHTML = '<tr><td colspan="5" class="empty">No data</td></tr>'; return; }
+
+  body.innerHTML = groups.map(function(g){
+    var grpRow = '<tr class="grp-row"><td>'+esc(g.buyer_id)+'</td><td></td>'+
+      '<td class="num">'+fmtNum(g.cat)+'</td><td class="num">'+fmtNum(g.industry)+'</td><td class="num">'+g.pins_pct+'%</td></tr>';
+    var subRows = g.companyList.map(function(c){
+      return '<tr class="sub-row"><td></td><td>'+esc(c.company)+'</td>'+
+        '<td class="num">'+fmtNum(c.cat)+'</td><td class="num">'+fmtNum(c.industry)+'</td><td class="num">'+c.pins_pct+'%</td></tr>';
+    }).join('');
+    return grpRow + subRows;
+  }).join('');
+}
+
+// ── Pie charts ────────────────────────────────────────────────────────────
+function renderPieChart(containerId, slices){
+  var total = slices.reduce(function(s,x){return s+x.value;},0);
+  var R=60, C=2*Math.PI*R, cx=70, cy=70, offset=0;
+  var circles = slices.map(function(s,i){
+    var frac = total ? s.value/total : 0;
+    var dash = frac*C;
+    var html = '<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'+PIE_COLORS[i%PIE_COLORS.length]+
+      '" stroke-width="24" stroke-dasharray="'+dash.toFixed(2)+' '+(C-dash).toFixed(2)+'" stroke-dashoffset="'+(-offset).toFixed(2)+
+      '" transform="rotate(-90 '+cx+' '+cy+')"></circle>';
+    offset += dash;
+    return html;
+  }).join('');
+  var legend = slices.map(function(s,i){
+    var pct = total ? Math.round(1000*s.value/total)/10 : 0;
+    return '<div class="pie-legend-item"><span class="pie-swatch" style="background:'+PIE_COLORS[i%PIE_COLORS.length]+'"></span>'+
+      esc(s.label)+': '+fmtNum(s.value)+' ('+pct+'%)</div>';
+  }).join('');
+  document.getElementById(containerId).innerHTML = total ?
+    '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'+
+      '<svg width="140" height="140" viewBox="0 0 140 140" style="flex-shrink:0">'+circles+'</svg>'+
+      '<div class="pie-legend">'+legend+'</div>'+
+    '</div>' : '<div class="empty">No data</div>';
+}
+
+function t2RenderPies(){
+  // Per-buyer rollups needed for the customer-level (not machine-level) pies
+  var byBuyerLatest = {};   // buyer_id -> most recent row in the filtered set
+  var byBuyerKnown = {};    // buyer_id -> true if ANY filtered row is Known
+  var byBuyerBucket = {};   // buyer_id -> sales_bucket (static, same across their rows)
+
+  t2CurrentFiltered.forEach(function(r){
+    var bid = r.buyer_id;
+    if(!bid) return;
+    if(!byBuyerLatest[bid] || (r.filing_date||'') > (byBuyerLatest[bid].filing_date||'')) byBuyerLatest[bid] = r;
+    if(r.known_unknown==='Known') byBuyerKnown[bid] = true;
+    if(r.sales_bucket) byBuyerBucket[bid] = r.sales_bucket;
+  });
+  var buyerIds = Object.keys(byBuyerLatest);
+
+  // 1. New vs Existing customers
+  var newCust=0, existCust=0;
+  buyerIds.forEach(function(bid){ if(byBuyerLatest[bid].new_existing==='New') newCust++; else if(byBuyerLatest[bid].new_existing==='Existing') existCust++; });
+  renderPieChart('pie-newexist-cust', [{label:'New', value:newCust},{label:'Existing', value:existCust}]);
+
+  // 2. Customer purchase segments
+  var segCounts = {'1':0,'2-5':0,'5+':0};
+  buyerIds.forEach(function(bid){ var b=byBuyerBucket[bid]; if(segCounts[b]!==undefined) segCounts[b]++; });
+  renderPieChart('pie-segments', [{label:'1 Unit', value:segCounts['1']},{label:'2-5 Units', value:segCounts['2-5']},{label:'5+ Units', value:segCounts['5+']}]);
+
+  // 3. Known vs Unknown customers
+  var knownCust=0, unknownCust=0;
+  buyerIds.forEach(function(bid){ if(byBuyerKnown[bid]) knownCust++; else unknownCust++; });
+  renderPieChart('pie-known-cust', [{label:'Known', value:knownCust},{label:'Unknown', value:unknownCust}]);
+
+  // 4. New customers by manufacturer (manufacturer of their qualifying "new" purchase)
+  var newByMfr = {};
+  buyerIds.forEach(function(bid){
+    var r = byBuyerLatest[bid];
+    if(r.new_existing==='New' && r.manufacturer){ newByMfr[r.manufacturer] = (newByMfr[r.manufacturer]||0)+1; }
+  });
+  var mfrSlices = Object.keys(newByMfr).sort(function(a,b){return newByMfr[b]-newByMfr[a];}).slice(0,8)
+    .map(function(m){ return {label:m, value:newByMfr[m]}; });
+  renderPieChart('pie-new-mfr', mfrSlices);
+
+  // 5. New vs Existing machines (row/unit-level count)
+  var newMach=0, existMach=0;
+  t2CurrentFiltered.forEach(function(r){ if(r.new_existing==='New') newMach++; else if(r.new_existing==='Existing') existMach++; });
+  renderPieChart('pie-newexist-mach', [{label:'New', value:newMach},{label:'Existing', value:existMach}]);
+
+  // 6. Known vs Unknown machines (row/unit-level count)
+  var knownMach=0, unknownMach=0;
+  t2CurrentFiltered.forEach(function(r){ if(r.known_unknown==='Known') knownMach++; else unknownMach++; });
+  renderPieChart('pie-known-mach', [{label:'Known', value:knownMach},{label:'Unknown', value:unknownMach}]);
+}
+
+// ── Bar charts (reuses the .bar-row visual pattern from Tab 1) ─────────
+function renderBarList(containerId, items, maxItems){
+  items = items.slice(0, maxItems||30);
+  var maxV = Math.max.apply(null, items.map(function(x){return x.value;}).concat([1]));
+  document.getElementById(containerId).innerHTML = items.length ? items.map(function(x){
+    var pct = 100*x.value/maxV;
+    return '<div class="bar-row" style="cursor:default"><div class="bl">'+esc(x.label)+'</div>'+
+      '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%"></div></div>'+
+      '<div class="bar-num">'+x.display+'</div></div>';
+  }).join('') : '<div class="empty">No data</div>';
+}
+
+function t2RenderBars(){
+  // 1. Average days between purchases by buyer, deduping same-day purchases first
+  var byBuyerDates = {}, byBuyerCompanyCounts = {};
+  t2CurrentFiltered.forEach(function(r){
+    var bid = r.buyer_id;
+    if(!bid || !r.filing_date) return;
+    if(!byBuyerDates[bid]) byBuyerDates[bid] = new Set();
+    byBuyerDates[bid].add(r.filing_date);
+    if(!byBuyerCompanyCounts[bid]) byBuyerCompanyCounts[bid] = {};
+    var comp = r.company || '(unknown)';
+    byBuyerCompanyCounts[bid][comp] = (byBuyerCompanyCounts[bid][comp]||0) + 1;
+  });
+  var avgDaysItems = [];
+  Object.keys(byBuyerDates).forEach(function(bid){
+    var dates = Array.from(byBuyerDates[bid]).sort();
+    if(dates.length < 2) return; // need at least 2 distinct purchase days to measure a gap
+    var gaps = [];
+    for(var i=1;i<dates.length;i++){
+      var d1 = new Date(dates[i-1]+'T00:00:00'), d2 = new Date(dates[i]+'T00:00:00');
+      gaps.push((d2-d1)/86400000);
+    }
+    var avg = gaps.reduce(function(s,g){return s+g;},0)/gaps.length;
+    var counts = byBuyerCompanyCounts[bid];
+    var topCompany = Object.keys(counts).sort(function(a,b){return counts[b]-counts[a];})[0];
+    avgDaysItems.push({label:topCompany, value: Math.round(avg*10)/10, display: Math.round(avg*10)/10+' days', dateCount: dates.length});
+  });
+  avgDaysItems.sort(function(a,b){ return a.value - b.value; }); // most frequent buyers first
+  renderBarList('bar-avg-days', avgDaysItems, 20);
+
+  // 2. Sales by manufacturer
+  var byMfr = {};
+  t2CurrentFiltered.forEach(function(r){ if(r.manufacturer) byMfr[r.manufacturer] = (byMfr[r.manufacturer]||0)+1; });
+  var mfrItems = Object.keys(byMfr).sort(function(a,b){return byMfr[b]-byMfr[a];})
+    .map(function(m){ return {label:m, value:byMfr[m], display:fmtNum(byMfr[m])}; });
+  renderBarList('bar-mfr-t2', mfrItems, 30);
+
+  // 3. Sales by product family (equipment description)
+  var byEquip = {};
+  t2CurrentFiltered.forEach(function(r){ if(r.equipment_description) byEquip[r.equipment_description] = (byEquip[r.equipment_description]||0)+1; });
+  var equipItems = Object.keys(byEquip).sort(function(a,b){return byEquip[b]-byEquip[a];})
+    .map(function(e){ return {label:e, value:byEquip[e], display:fmtNum(byEquip[e])}; });
+  renderBarList('bar-product-family', equipItems, 30);
 }
 
 // ── Init ────────────────────────────────────────────────────────────────

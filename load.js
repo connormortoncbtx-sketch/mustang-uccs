@@ -28,7 +28,7 @@ if (!filePath) {
   process.exit(1);
 }
 
-const client = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
+let client = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
 
 // ── Hashing (identical to ExcaVision's hashStr/hashRow, for consistency) ──
 function hashStr(str) {
@@ -92,7 +92,7 @@ const UPSERT_SQL = `INSERT INTO ucc_facts (
   user_assignment, user_assignment_mgr, salesmen1,
   load_batch, row_hash, updated_at
 ) VALUES (?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?, ?,?,?,?,?,?,?,?,?,?, ?,?,?, ?,?,datetime('now'))
-ON CONFLICT(serial, filing_date, manufacturer) DO UPDATE SET
+ON CONFLICT(serial, filing_date) DO UPDATE SET
   buyer_id=excluded.buyer_id, easi_company_id=excluded.easi_company_id,
   company=excluded.company, customer_number=excluded.customer_number, dbs_name=excluded.dbs_name,
   ucc_status=excluded.ucc_status, equipment_description=excluded.equipment_description, model=excluded.model,
@@ -105,20 +105,64 @@ ON CONFLICT(serial, filing_date, manufacturer) DO UPDATE SET
   salesmen1=excluded.salesmen1, load_batch=excluded.load_batch,
   row_hash=excluded.row_hash, updated_at=excluded.updated_at`;
 
+// Retries a batch write on transient failures (dropped connections, socket resets —
+// common on long-running scripts behind a corporate proxy). Recreates the client
+// between attempts in case the underlying connection itself is the problem, not
+// just a single request.
+async function executeBatchWithRetry(batch, maxRetries = 5) {
+  let lastErr;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await client.batch(batch, 'write');
+      return;
+    } catch (err) {
+      lastErr = err;
+      console.warn(`  batch write failed (attempt ${attempt}/${maxRetries}): ${err.message || err}`);
+      if (attempt < maxRetries) {
+        const delay = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s, 8s...
+        console.warn(`  reconnecting and retrying in ${delay / 1000}s...`);
+        await new Promise((res) => setTimeout(res, delay));
+        client = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
+      }
+    }
+  }
+  throw lastErr;
+}
+
+// Same idea, for single read queries (hash pagination, payload row pagination).
+async function executeWithRetry(sql, args, maxRetries = 5) {
+  let lastErr;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await client.execute({ sql, args: args || [] });
+    } catch (err) {
+      lastErr = err;
+      console.warn(`  query failed (attempt ${attempt}/${maxRetries}): ${err.message || err}`);
+      if (attempt < maxRetries) {
+        const delay = 1000 * Math.pow(2, attempt - 1);
+        console.warn(`  reconnecting and retrying in ${delay / 1000}s...`);
+        await new Promise((res) => setTimeout(res, delay));
+        client = createClient({ url: TURSO_URL, authToken: TURSO_TOKEN });
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function loadExistingHashes() {
   const map = {};
-  const countRes = await client.execute('SELECT COUNT(*) as cnt FROM ucc_facts');
+  const countRes = await executeWithRetry('SELECT COUNT(*) as cnt FROM ucc_facts');
   const total = Number(countRes.rows[0]?.cnt || 0);
   if (total === 0) return map;
 
   const PAGE = 10000;
   for (let offset = 0; offset < total; offset += PAGE) {
-    const res = await client.execute({
-      sql: 'SELECT serial, filing_date, manufacturer, row_hash FROM ucc_facts LIMIT ? OFFSET ?',
-      args: [PAGE, offset]
-    });
+    const res = await executeWithRetry(
+      'SELECT serial, filing_date, row_hash FROM ucc_facts LIMIT ? OFFSET ?',
+      [PAGE, offset]
+    );
     res.rows.forEach((r) => {
-      const pk = `${r.serial || ''}|${r.filing_date || ''}|${r.manufacturer || ''}`;
+      const pk = `${r.serial || ''}|${r.filing_date || ''}`;
       map[pk] = String(r.row_hash || '');
     });
     console.log(`  loaded hashes ${Math.min(offset + PAGE, total)} / ${total}`);
@@ -153,7 +197,7 @@ async function main() {
     const mfr = String(r[C['MANUFACTURER']] || '').trim();
     if (!serial && !fdate && !mfr) continue;
 
-    const pk = `${serial}|${fdate}|${mfr}`;
+    const pk = `${serial}|${fdate}`;
     const company = String(r[C['COMPANY']] || '').trim();
     const rep = String(r[C['USER ASSIGNMENT']] || '').trim();
     const repMgr = String(r[C['USER ASSIGNMENT MANAGER']] || '').trim();
@@ -210,7 +254,7 @@ async function main() {
     const batch = stmts.slice(bi, bi + BATCH);
     // Sequential per-batch (not parallel fan-out) — matches the lesson learned from
     // Sales Funnel's loader running behind Connor's corporate TLS-inspecting proxy.
-    await client.batch(batch, 'write');
+    await executeBatchWithRetry(batch);
     upserted += batch.length;
     console.log(`  upserted ${upserted} / ${stmts.length}`);
   }
@@ -227,49 +271,134 @@ async function main() {
 // client-side in memory. Same pattern as PINS/Sales Funnel's precompute step.
 async function buildPayload() {
   console.log('Building dashboard payload...');
-  const countRes = await client.execute('SELECT COUNT(*) as cnt FROM ucc_facts');
+  const countRes = await executeWithRetry('SELECT COUNT(*) as cnt FROM ucc_facts');
   const total = Number(countRes.rows[0]?.cnt || 0);
 
-  const cols = [
+  const fetchCols = [
     'company', 'filing_date', 'ucc_status', 'manufacturer', 'equipment_description',
     'model', 'serial', 'new_used', 'equipment_value', 'county', 'city',
-    'user_assignment', 'salesmen1'
+    'user_assignment', 'salesmen1', 'buyer_id', 'customer_number'
   ];
 
+  // Fetch as objects during this pass (easier to compute derived fields against);
+  // converted to the compact array-of-arrays form at the end for transmission.
   const allRows = [];
   const PAGE = 10000;
   for (let offset = 0; offset < total; offset += PAGE) {
-    const res = await client.execute({
-      sql: `SELECT ${cols.join(',')} FROM ucc_facts LIMIT ? OFFSET ?`,
-      args: [PAGE, offset]
+    const res = await executeWithRetry(
+      `SELECT ${fetchCols.join(',')} FROM ucc_facts LIMIT ? OFFSET ?`,
+      [PAGE, offset]
+    );
+    res.rows.forEach((r) => {
+      const obj = {};
+      fetchCols.forEach((c) => { obj[c] = r[c]; });
+      allRows.push(obj);
     });
-    // Array-of-arrays, not array-of-objects — avoids repeating field names
-    // ~89K times, which is most of the payload weight.
-    res.rows.forEach((r) => { allRows.push(cols.map((c) => r[c])); });
     console.log(`  read ${Math.min(offset + PAGE, total)} / ${total} for payload`);
   }
 
-  const payload = { columns: cols, rows: allRows, generated_at: new Date().toISOString() };
+  computeDerivedFields(allRows);
+
+  const cols = fetchCols.concat(['new_existing', 'sales_count_5yr', 'sales_bucket', 'known_unknown']);
+  const rowArrays = allRows.map((r) => cols.map((c) => r[c]));
+
+  const payload = { columns: cols, rows: rowArrays, generated_at: new Date().toISOString() };
   const json = JSON.stringify(payload);
   const gz = zlib.gzipSync(Buffer.from(json, 'utf-8'));
   const b64 = gz.toString('base64');
 
-  await client.execute({
-    sql: `CREATE TABLE IF NOT EXISTS ucc_payload (
+  await executeWithRetry(
+    `CREATE TABLE IF NOT EXISTS ucc_payload (
       id INTEGER PRIMARY KEY,
       data TEXT NOT NULL,
       row_count INTEGER,
       updated_at TEXT
-    )`,
-    args: []
-  });
-  await client.execute({
-    sql: `INSERT INTO ucc_payload (id, data, row_count, updated_at) VALUES (1, ?, ?, datetime('now'))
-          ON CONFLICT(id) DO UPDATE SET data=excluded.data, row_count=excluded.row_count, updated_at=excluded.updated_at`,
-    args: [b64, allRows.length]
+    )`
+  );
+  await executeWithRetry(
+    `INSERT INTO ucc_payload (id, data, row_count, updated_at) VALUES (1, ?, ?, datetime('now'))
+     ON CONFLICT(id) DO UPDATE SET data=excluded.data, row_count=excluded.row_count, updated_at=excluded.updated_at`,
+    [b64, rowArrays.length]
+  );
+
+  console.log(`Payload built: ${rowArrays.length} rows, ${(json.length/1024/1024).toFixed(1)}MB raw -> ${(gz.length/1024/1024).toFixed(2)}MB gzipped.`);
+}
+
+// ── Derived company-analysis fields (Tab 2) ──────────────────────────────
+// These are computed once here, against the FULL unfiltered purchase history,
+// so they stay stable regardless of whatever filters are active on the
+// dashboard later — a customer's New/Existing status shouldn't flip just
+// because someone filtered to a specific manufacturer.
+//
+//   new_existing    — per row/transaction. "New" if it's the buyer's first-ever
+//                     purchase, OR if the gap since their previous purchase is
+//                     >= 5 years (a dormant customer resurfacing counts as new).
+//                     Otherwise "Existing".
+//   sales_count_5yr — per buyer_id, static: count of that buyer's purchases
+//                     (rows) within the last 5 years of the dataset's latest
+//                     filing date (not real "today").
+//   sales_bucket    — sales_count_5yr bucketed into '1' / '2-5' / '5+'.
+//   known_unknown   — per row: "Known" if customer_number is populated
+//                     (matched to our ERP/DBS), else "Unknown".
+function computeDerivedFields(allRows) {
+  console.log('Computing derived fields (new/existing, sales buckets, known/unknown)...');
+
+  let anchor = '0000-00-00';
+  allRows.forEach((r) => { if (r.filing_date && r.filing_date > anchor) anchor = r.filing_date; });
+  const anchorD = new Date(anchor + 'T00:00:00');
+  const fiveYearsAgo = new Date(anchorD);
+  fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+  const fiveYearCutoff = fiveYearsAgo.toISOString().slice(0, 10);
+
+  // Group row indices by buyer_id
+  const byBuyer = new Map();
+  allRows.forEach((r, idx) => {
+    const bid = (r.buyer_id || '').trim();
+    if (!bid) return;
+    if (!byBuyer.has(bid)) byBuyer.set(bid, []);
+    byBuyer.get(bid).push(idx);
   });
 
-  console.log(`Payload built: ${allRows.length} rows, ${(json.length/1024/1024).toFixed(1)}MB raw -> ${(gz.length/1024/1024).toFixed(2)}MB gzipped.`);
+  const FIVE_YEARS_MS = 5 * 365.25 * 24 * 3600 * 1000;
+
+  byBuyer.forEach((idxs, bid) => {
+    idxs.sort((a, b) => {
+      const da = allRows[a].filing_date || '';
+      const db = allRows[b].filing_date || '';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+
+    let prevDate = null;
+    idxs.forEach((idx) => {
+      const fd = allRows[idx].filing_date;
+      if (!fd) { allRows[idx].new_existing = ''; return; }
+      const d = new Date(fd + 'T00:00:00');
+      if (prevDate === null) {
+        allRows[idx].new_existing = 'New';
+      } else {
+        const gapMs = d - prevDate;
+        allRows[idx].new_existing = gapMs >= FIVE_YEARS_MS ? 'New' : 'Existing';
+      }
+      prevDate = d;
+    });
+
+    const count5yr = idxs.filter((idx) => allRows[idx].filing_date && allRows[idx].filing_date >= fiveYearCutoff).length;
+    const bucket = count5yr <= 1 ? '1' : count5yr <= 5 ? '2-5' : '5+';
+    idxs.forEach((idx) => {
+      allRows[idx].sales_count_5yr = count5yr;
+      allRows[idx].sales_bucket = bucket;
+    });
+  });
+
+  // Rows with no buyer_id can't get a buyer-grouped designation
+  allRows.forEach((r) => {
+    if (r.new_existing === undefined) r.new_existing = '';
+    if (r.sales_count_5yr === undefined) r.sales_count_5yr = '';
+    if (r.sales_bucket === undefined) r.sales_bucket = '';
+    r.known_unknown = (r.customer_number && String(r.customer_number).trim()) ? 'Known' : 'Unknown';
+  });
+
+  console.log(`Derived fields computed. Anchor date: ${anchor}, 5yr cutoff: ${fiveYearCutoff}, ${byBuyer.size} distinct buyer IDs.`);
 }
 
 main().catch((err) => {

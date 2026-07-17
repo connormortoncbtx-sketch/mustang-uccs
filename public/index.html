@@ -97,7 +97,7 @@ main{padding:20px 26px 60px;max-width:1500px;margin:0 auto}
 .county-path{stroke:var(--bg);stroke-width:1;cursor:pointer;transition:opacity .1s}
 .county-path:hover{opacity:.8}
 .map-legend{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.7rem;color:var(--tx-dim)}
-.legend-grad{width:120px;height:10px;background:linear-gradient(90deg,var(--r),#c8a200,var(--g))}
+.legend-grad{width:120px;height:10px;background:linear-gradient(90deg,var(--r) 0%,#c8a200 30%,var(--g) 60%,var(--g) 100%)}
 
 table{width:100%;border-collapse:collapse}
 th{text-align:left;font-family:'Barlow Semi Condensed',sans-serif;font-weight:600;font-size:.65rem;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-dim);padding:8px 10px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--s1);cursor:pointer;user-select:none}
@@ -797,17 +797,21 @@ function pinsColor(pct){
   var FLOOR = mapColorFloor, CEIL = mapColorCeil; // dynamic — recomputed per filter set, county filter excluded
   var t = (pct - FLOOR) / (CEIL - FLOOR);
   t = Math.max(0, Math.min(1, t));
+  var AMBER_AT = 0.3; // bottom 30% of the range: red -> amber
+  var GREEN_AT = 0.6; // next 30%: amber -> green; beyond this, plateau at full green
   var r,g,b;
-  if(t <= 0.5){
-    var t1 = t/0.5;
+  if(t <= AMBER_AT){
+    var t1 = t/AMBER_AT;
     r = Math.round(231 + t1*(200-231));
     g = Math.round(76 + t1*(162-76));
     b = Math.round(60 + t1*(0-60));
-  } else {
-    var t2 = (t-0.5)/0.5;
+  } else if(t <= GREEN_AT){
+    var t2 = (t-AMBER_AT)/(GREEN_AT-AMBER_AT);
     r = Math.round(200 + t2*(46-200));
     g = Math.round(162 + t2*(204-162));
     b = Math.round(0 + t2*(113-0));
+  } else {
+    r = 46; g = 204; b = 113; // plateau: fully green well before the literal ceiling
   }
   return 'rgb('+r+','+g+','+b+')';
 }
@@ -855,9 +859,10 @@ function renderMap(countyMap){
   var tooltip = document.getElementById('tooltip');
   var fActive = filters.county.values.size>0;
 
+  var range = mapColorCeil - mapColorFloor;
   document.getElementById('legend-floor').textContent = (Math.round(mapColorFloor*10)/10) + '%';
-  document.getElementById('legend-mid').textContent = (Math.round((mapColorFloor+mapColorCeil)/2*10)/10) + '%';
-  document.getElementById('legend-ceil').textContent = (Math.round(mapColorCeil*10)/10) + '%+';
+  document.getElementById('legend-mid').textContent = (Math.round((mapColorFloor+range*0.3)*10)/10) + '%';
+  document.getElementById('legend-ceil').textContent = (Math.round((mapColorFloor+range*0.6)*10)/10) + '%+';
 
   svg.innerHTML = geoFeatures.map(function(f){
     var name = f.properties.CNTY_NM;

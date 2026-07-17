@@ -439,6 +439,7 @@ function msClearDim(dim){
 function updateMsLabel(dim){
   var f = filters[dim];
   var el = document.getElementById('mslabel-'+dim);
+  if(!el) return; // some dims (e.g. county) are chart-only with no picklist dropdown
   var prefix = f.mode==='exclude' ? 'Not: ' : '';
   if(f.values.size===0) el.textContent = 'All';
   else if(f.values.size===1) el.textContent = prefix + Array.from(f.values)[0];

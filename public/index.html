@@ -307,6 +307,9 @@ function fmtMoney(v){
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
 });}
+// JSON.stringify() wraps values in double quotes, which breaks a double-quoted
+// HTML attribute if embedded raw. This escapes it for safe use inside onclick="...".
+function attrJson(v){ return JSON.stringify(v).replace(/"/g, '&quot;'); }
 function normCounty(s){ return String(s||'').trim().toLowerCase(); }
 function pad2(n){ return String(n).length<2?'0'+n:String(n); }
 function lastDayOfMonth(y,m){ return new Date(y, m, 0).getDate(); }
@@ -679,7 +682,7 @@ function renderCountyTable(){
   var sorted = sortRows(countyListData, countySortState.col, countySortState.dir, countySortState.col!=='county');
   document.getElementById('county-table').innerHTML = sorted.length ?
     sorted.map(function(r){
-      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'county\','+JSON.stringify(r.county)+')">'+
+      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'county\','+attrJson(r.county)+')">'+
         '<td>'+esc(r.county)+'</td><td class="num">'+fmtNum(r.cat)+'</td><td class="num">'+fmtNum(r.industry)+'</td><td class="num pins-cell">'+r.pins_pct+'%</td></tr>';
     }).join('') : '<tr><td colspan="4" class="empty">No data</td></tr>';
 }
@@ -695,7 +698,7 @@ function renderEquipmentTable(){
   var sorted = sortRows(equipListData, equipSortState.col, equipSortState.dir, equipSortState.col!=='equipment_description');
   document.getElementById('equipment-table').innerHTML = sorted.length ?
     sorted.map(function(r){
-      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'equipment_description\','+JSON.stringify(r.equipment_description)+')">'+
+      return '<tr class="'+(r.faded?'faded':'')+'" onclick="toggleFilterValue(\'equipment_description\','+attrJson(r.equipment_description)+')">'+
         '<td>'+esc(r.equipment_description)+'</td><td class="num">'+fmtNum(r.cat)+'</td><td class="num">'+fmtNum(r.industry)+'</td><td class="num pins-cell">'+r.pins_pct+'%</td></tr>';
     }).join('') : '<tr><td colspan="4" class="empty">No data</td></tr>';
 }
@@ -785,7 +788,7 @@ function recomputeAndRender(){
     mfrList.map(function(r){
       var pct = 100*r.total/maxTotal;
       var iscat = r.manufacturer === 'CAT';
-      return '<div class="bar-row'+(r.faded?' faded':'')+'" onclick="toggleFilterValue(\'manufacturer\','+JSON.stringify(r.manufacturer)+')">'+
+      return '<div class="bar-row'+(r.faded?' faded':'')+'" onclick="toggleFilterValue(\'manufacturer\','+attrJson(r.manufacturer)+')">'+
         '<div class="bl">'+esc(r.manufacturer)+'</div>'+
         '<div class="bar-track"><div class="bar-fill'+(iscat?' iscat':'')+'" style="width:'+pct+'%"></div></div>'+
         '<div class="bar-num">'+fmtNum(r.total)+' &middot; '+r.pins_pct+'%</div></div>';
@@ -871,7 +874,7 @@ function renderMap(countyMap){
     var d = geomToPath(f.geometry, mapProject);
     var label = rec ? (name+': '+rec.pins_pct+'% ('+rec.cat+' / '+rec.industry+')') : (name+': no filings');
     var opacity = (fActive && rec && rec.faded) ? '0.32' : '1';
-    return '<path class="county-path" d="'+d+'" fill="'+fill+'" fill-opacity="'+opacity+'" data-label="'+esc(label)+'" onclick="toggleFilterValue(\'county\','+JSON.stringify(name)+')"></path>';
+    return '<path class="county-path" d="'+d+'" fill="'+fill+'" fill-opacity="'+opacity+'" data-label="'+esc(label)+'" onclick="toggleFilterValue(\'county\','+attrJson(name)+')"></path>';
   }).join('');
 
   svg.querySelectorAll('.county-path').forEach(function(el){
@@ -900,7 +903,7 @@ var RAW_COLS = [
 function renderRawThead(){
   document.getElementById('raw-thead').innerHTML = '<tr>' + RAW_COLS.map(function(c){
     var cls = c.numeric ? ' class="num"' : '';
-    return '<th'+cls+' onclick="sortToggle(\'raw\','+JSON.stringify(c.key)+','+c.numeric+')">'+c.label+sortArrow(rawSortState,c.key)+'</th>';
+    return '<th'+cls+' onclick="sortToggle(\'raw\','+attrJson(c.key)+','+c.numeric+')">'+c.label+sortArrow(rawSortState,c.key)+'</th>';
   }).join('') + '</tr>';
 }
 function renderRaw(){

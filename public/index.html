@@ -1603,7 +1603,7 @@ function t2RenderGroupTable(){
 // ── Pie charts ────────────────────────────────────────────────────────────
 function renderPieChart(containerId, slices){
   var total = slices.reduce(function(s,x){return s+x.value;},0);
-  var R=60, C=2*Math.PI*R, cx=70, cy=70, offset=0;
+  var R=52, C=2*Math.PI*R, cx=70, cy=70, offset=0; // R+half of stroke-width(24) must stay under 70 (viewBox half-width) or the ring clips
   var circles = slices.map(function(s,i){
     var frac = total ? s.value/total : 0;
     var dash = frac*C;
@@ -1679,21 +1679,34 @@ function renderBarList(containerId, items, maxItems){
 }
 
 function t2RenderBars(){
-  // 1. Average days between purchases by buyer, deduping same-day purchases first
+  // 1. Average days between purchases by buyer, deduping same-day purchases first.
+  // Includes a "phantom" gap from their last purchase to the dataset's latest date —
+  // without it, a buyer with just 2 purchases close together years ago would show a
+  // meaningless tiny average, indistinguishable from a genuinely frequent buyer.
+  // With it, an old dormant pair correctly shows a huge average and drops out of the
+  // "most frequent" ranking, while genuinely active repeat buyers stay at the top.
+  // Still requires >=2 real distinct dates so a single recent purchase (which would
+  // otherwise look "frequent" purely because the phantom gap alone is tiny) doesn't
+  // qualify — this needs an actual pattern of repeat buying, not just recency.
   if(!t2BuyerAgg) t2BuyerAgg = t2BuildBuyerAgg();
   var agg = t2BuyerAgg;
+  var MIN_DATES = 2;
   var avgDaysItems = [];
   agg.touched.forEach(function(bi){
     var dates = Object.keys(agg.dates[bi]).sort();
-    if(dates.length < 2) return; // need at least 2 distinct purchase days to measure a gap
+    if(dates.length < MIN_DATES) return;
+    // "most common company" = the one with the most rows under this buyer, already tracked
+    var topCompany = Object.values(agg.companies[bi]).sort(function(a,b){return b.industry-a.industry;})[0].company;
+    if(!topCompany || topCompany === '(unknown)' || /^unknown$/i.test(topCompany)) return;
     var gaps = [];
     for(var i=1;i<dates.length;i++){
       var d1 = new Date(dates[i-1]+'T00:00:00'), d2 = new Date(dates[i]+'T00:00:00');
       gaps.push((d2-d1)/86400000);
     }
+    var lastD = new Date(dates[dates.length-1]+'T00:00:00');
+    var anchorD = new Date(ANCHOR_DATE+'T00:00:00');
+    gaps.push((anchorD-lastD)/86400000); // phantom gap to the dataset's latest date
     var avg = gaps.reduce(function(s,x){return s+x;},0)/gaps.length;
-    // "most common company" = the one with the most rows under this buyer, already tracked
-    var topCompany = Object.values(agg.companies[bi]).sort(function(a,b){return b.industry-a.industry;})[0].company;
     avgDaysItems.push({label:topCompany, value: Math.round(avg*10)/10, display: Math.round(avg*10)/10+' days', dateCount: dates.length});
   });
   avgDaysItems.sort(function(a,b){ return a.value - b.value; }); // most frequent buyers first

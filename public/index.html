@@ -187,6 +187,7 @@ tbody tr.faded{opacity:.32}
 .group-table .grp-row td{font-weight:700;background:var(--s2);border-top:1px solid var(--bd)}
 .group-table .sub-row td{color:var(--tx-dim);font-size:.75rem}
 .group-table .sub-row td:first-child{padding-left:24px}
+.group-table tr[data-bid]{cursor:pointer}
 
 @media(max-width:1000px){ .tiles,.row2{grid-template-columns:1fr} .pie-grid{grid-template-columns:1fr} }
 </style>
@@ -319,21 +320,21 @@ tbody tr.faded{opacity:.32}
       </div>
       <div class="fgrp"><label>Sales Segment</label>
         <div class="pill-toggle-group" id="t2-bucket-toggles">
-          <button class="pill-toggle" data-val="1" onclick="t2TogglePill('bucket_set','1',this)">1 Unit</button>
-          <button class="pill-toggle" data-val="2-5" onclick="t2TogglePill('bucket_set','2-5',this)">2-5 Units</button>
-          <button class="pill-toggle" data-val="5+" onclick="t2TogglePill('bucket_set','5+',this)">5+ Units</button>
+          <button class="pill-toggle" data-val="1" onclick="t2TogglePill('bucket_set','1')">1 Unit</button>
+          <button class="pill-toggle" data-val="2-5" onclick="t2TogglePill('bucket_set','2-5')">2-5 Units</button>
+          <button class="pill-toggle" data-val="5+" onclick="t2TogglePill('bucket_set','5+')">5+ Units</button>
         </div>
       </div>
       <div class="fgrp"><label>Customer Status</label>
         <div class="pill-toggle-group" id="t2-newexist-toggles">
-          <button class="pill-toggle" data-val="New" onclick="t2TogglePill('new_existing_set','New',this)">New</button>
-          <button class="pill-toggle" data-val="Existing" onclick="t2TogglePill('new_existing_set','Existing',this)">Existing</button>
+          <button class="pill-toggle" data-val="New" onclick="t2TogglePill('new_existing_set','New')">New</button>
+          <button class="pill-toggle" data-val="Existing" onclick="t2TogglePill('new_existing_set','Existing')">Existing</button>
         </div>
       </div>
       <div class="fgrp"><label>ERP Match</label>
         <div class="pill-toggle-group" id="t2-known-toggles">
-          <button class="pill-toggle" data-val="Known" onclick="t2TogglePill('known_set','Known',this)">Known</button>
-          <button class="pill-toggle" data-val="Unknown" onclick="t2TogglePill('known_set','Unknown',this)">Unknown</button>
+          <button class="pill-toggle" data-val="Known" onclick="t2TogglePill('known_set','Known')">Known</button>
+          <button class="pill-toggle" data-val="Unknown" onclick="t2TogglePill('known_set','Unknown')">Unknown</button>
         </div>
       </div>
       <button class="ghost" onclick="t2ClearFilters()">Clear All</button>
@@ -1343,10 +1344,29 @@ function t2ClearDateFilter(){
 }
 
 // ── Pill toggles (sales segment / customer status / ERP match) ─────────
-function t2TogglePill(setKey, value, btn){
+function t2TogglePill(setKey, value){
   var s = filters2[setKey];
   if(s.has(value)) s.delete(value); else s.add(value);
-  btn.classList.toggle('on', s.has(value));
+  var groupId = setKey==='bucket_set' ? 't2-bucket-toggles' : setKey==='new_existing_set' ? 't2-newexist-toggles' : 't2-known-toggles';
+  var btn = document.querySelector('#'+groupId+' .pill-toggle[data-val="'+CSS.escape(value)+'"]');
+  if(btn) btn.classList.toggle('on', s.has(value));
+  t2ApplyFilters();
+}
+// Manufacturer/equipment/county multi-select toggle from a chart click — mirrors
+// Tab 1's toggleFilterValue, keeping the corresponding filter-bar checkbox in sync.
+function t2ToggleFilterValue(dim, value){
+  var f = filters2[dim];
+  if(f.values.has(value)) f.values.delete(value); else f.values.add(value);
+  var cb = document.querySelector('#msdrop-t2'+dim+' input[data-value="'+CSS.escape(value)+'"]');
+  if(cb) cb.checked = f.values.has(value);
+  t2UpdateMsLabel(dim);
+  t2ApplyFilters();
+}
+// Buyer ID is a free-text single-value filter, not a multi-select — clicking a
+// buyer-keyed chart/table row sets it to that exact buyer (or clears it if already set).
+function t2SetBuyerIdFilter(bid){
+  var input = document.getElementById('t2-f-buyerid');
+  input.value = (input.value.trim().toLowerCase() === String(bid).toLowerCase()) ? '' : bid;
   t2ApplyFilters();
 }
 function t2CountModeChange(){
@@ -1377,19 +1397,19 @@ function t2ClearFilters(){
 }
 
 // ── Filtering ────────────────────────────────────────────────────────────
-function t2Matches(r){
+function t2MatchesExcept(r, excludeKey){
   var fFrom = filters2.date_from, fTo = filters2.date_to;
   if(fFrom && (!r.filing_date || r.filing_date < fFrom)) return false;
   if(fTo && (!r.filing_date || r.filing_date > fTo)) return false;
   if(filters2.company && (!r.company || r.company.toLowerCase().indexOf(filters2.company) === -1)) return false;
   if(filters2.buyer_id && (!r.buyer_id || r.buyer_id.toLowerCase().indexOf(filters2.buyer_id) === -1)) return false;
-  if(!passesDimension(r.manufacturer, filters2.manufacturer)) return false;
+  if(excludeKey!=='manufacturer' && !passesDimension(r.manufacturer, filters2.manufacturer)) return false;
   if(!passesDimension(r.new_used, filters2.new_used)) return false;
-  if(!passesDimension(r.equipment_description, filters2.equipment_description)) return false;
+  if(excludeKey!=='equipment_description' && !passesDimension(r.equipment_description, filters2.equipment_description)) return false;
   if(!passesDimension(r.county, filters2.county)) return false;
-  if(filters2.bucket_set.size && !filters2.bucket_set.has(r.sales_bucket)) return false;
-  if(filters2.new_existing_set.size && !filters2.new_existing_set.has(r.new_existing)) return false;
-  if(filters2.known_set.size && !filters2.known_set.has(r.known_unknown)) return false;
+  if(excludeKey!=='bucket_set' && filters2.bucket_set.size && !filters2.bucket_set.has(r.sales_bucket)) return false;
+  if(excludeKey!=='new_existing_set' && filters2.new_existing_set.size && !filters2.new_existing_set.has(r.new_existing)) return false;
+  if(excludeKey!=='known_set' && filters2.known_set.size && !filters2.known_set.has(r.known_unknown)) return false;
   if(filters2.count_from!=null || filters2.count_to!=null){
     var cnt = parseFloat(r.sales_count_5yr);
     if(isNaN(cnt)) return false;
@@ -1402,6 +1422,22 @@ function t2Matches(r){
   }
   return true;
 }
+function t2Matches(r){ return t2MatchesExcept(r, null); }
+
+// Cache of "all rows matching every filter except dimension X" — used by charts tied
+// to dimension X so clicking one of their own options doesn't make the others vanish.
+// Cleared once per filter change (t2ApplyFilters), lazily rebuilt at most once per
+// dimension per render (shared between, e.g., the manufacturer pie and manufacturer bar).
+var t2ExclCache = {};
+function t2GetExcluding(dim){
+  if(!(dim in t2ExclCache)){
+    var out = [];
+    for(var i=0;i<ALL_ROWS.length;i++){ if(t2MatchesExcept(ALL_ROWS[i], dim)) out.push(ALL_ROWS[i]); }
+    t2ExclCache[dim] = out;
+  }
+  return t2ExclCache[dim];
+}
+
 function t2ApplyFilters(){
   filters2.date_from = document.getElementById('t2-f-from').value;
   filters2.date_to = document.getElementById('t2-f-to').value;
@@ -1415,6 +1451,7 @@ function t2ApplyFilters(){
   t2CurrentFiltered = ALL_ROWS.filter(t2Matches);
   t2AllGroupsCache = null;
   t2BuyerAgg = null;
+  t2ExclCache = {};
   t2GroupPage.offset = 0;
   t2Recompute();
 }
@@ -1584,14 +1621,17 @@ function t2RenderGroupTable(){
   if(!page.length){ body.innerHTML = '<tr><td colspan="5" class="empty">No data</td></tr>'; }
   else {
     body.innerHTML = page.map(function(g){
-      var grpRow = '<tr class="grp-row"><td>'+esc(g.buyer_id)+'</td><td></td>'+
+      var grpRow = '<tr class="grp-row" data-bid="'+esc(g.buyer_id)+'"><td>'+esc(g.buyer_id)+'</td><td></td>'+
         '<td class="num">'+fmtNum(g.cat)+'</td><td class="num">'+fmtNum(g.industry)+'</td><td class="num">'+g.pins_pct+'%</td></tr>';
       var subRows = g.companyList.map(function(c){
-        return '<tr class="sub-row"><td></td><td>'+esc(c.company)+'</td>'+
+        return '<tr class="sub-row" data-bid="'+esc(g.buyer_id)+'"><td></td><td>'+esc(c.company)+'</td>'+
           '<td class="num">'+fmtNum(c.cat)+'</td><td class="num">'+fmtNum(c.industry)+'</td><td class="num">'+c.pins_pct+'%</td></tr>';
       }).join('');
       return grpRow + subRows;
     }).join('');
+    body.querySelectorAll('tr[data-bid]').forEach(function(tr){
+      tr.addEventListener('click', function(){ t2SetBuyerIdFilter(tr.getAttribute('data-bid')); });
+    });
   }
 
   document.getElementById('t2-group-count').textContent =
@@ -1601,81 +1641,140 @@ function t2RenderGroupTable(){
 }
 
 // ── Pie charts ────────────────────────────────────────────────────────────
-function renderPieChart(containerId, slices){
+function renderPieChart(containerId, slices, onClickSlice){
   var total = slices.reduce(function(s,x){return s+x.value;},0);
   var R=52, C=2*Math.PI*R, cx=70, cy=70, offset=0; // R+half of stroke-width(24) must stay under 70 (viewBox half-width) or the ring clips
   var circles = slices.map(function(s,i){
     var frac = total ? s.value/total : 0;
     var dash = frac*C;
-    var html = '<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'+PIE_COLORS[i%PIE_COLORS.length]+
+    var cursorStyle = onClickSlice ? ' style="cursor:pointer"' : '';
+    var html = '<circle data-idx="'+i+'" cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="'+PIE_COLORS[i%PIE_COLORS.length]+
       '" stroke-width="24" stroke-dasharray="'+dash.toFixed(2)+' '+(C-dash).toFixed(2)+'" stroke-dashoffset="'+(-offset).toFixed(2)+
-      '" transform="rotate(-90 '+cx+' '+cy+')"></circle>';
+      '" transform="rotate(-90 '+cx+' '+cy+')" opacity="'+(s.faded?0.32:1)+'"'+cursorStyle+'></circle>';
     offset += dash;
     return html;
   }).join('');
   var legend = slices.map(function(s,i){
     var pct = total ? Math.round(1000*s.value/total)/10 : 0;
-    return '<div class="pie-legend-item"><span class="pie-swatch" style="background:'+PIE_COLORS[i%PIE_COLORS.length]+'"></span>'+
+    var styleParts = [];
+    if(s.faded) styleParts.push('opacity:.4');
+    if(onClickSlice) styleParts.push('cursor:pointer');
+    var styleAttr = styleParts.length ? ' style="'+styleParts.join(';')+'"' : '';
+    return '<div class="pie-legend-item" data-idx="'+i+'"'+styleAttr+'><span class="pie-swatch" style="background:'+PIE_COLORS[i%PIE_COLORS.length]+'"></span>'+
       esc(s.label)+': '+fmtNum(s.value)+' ('+pct+'%)</div>';
   }).join('');
-  document.getElementById(containerId).innerHTML = total ?
+  var el = document.getElementById(containerId);
+  el.innerHTML = total ?
     '<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">'+
       '<svg width="140" height="140" viewBox="0 0 140 140" style="flex-shrink:0">'+circles+'</svg>'+
       '<div class="pie-legend">'+legend+'</div>'+
     '</div>' : '<div class="empty">No data</div>';
+  if(onClickSlice){
+    el.querySelectorAll('[data-idx]').forEach(function(node){
+      node.addEventListener('click', function(){ onClickSlice(slices[parseInt(node.getAttribute('data-idx'),10)]); });
+    });
+  }
 }
 
 function t2RenderPies(){
-  if(!t2BuyerAgg) t2BuyerAgg = t2BuildBuyerAgg();
-  var agg = t2BuyerAgg;
-  var touched = agg.touched;
+  // Each pie is computed from the row set that has EVERY filter applied except its
+  // own dimension — so clicking a slice never makes the chart's own other options
+  // disappear. Non-matching slices just fade (opacity), matching Tab 1's pattern.
+  // Dimensions shared between two pies (new_existing_set -> pies 1+5, known_set ->
+  // pies 3+6) reuse the same excluded-row-set via t2GetExcluding's cache.
 
-  // 1. New vs Existing customers
-  var newCust=0, existCust=0;
-  touched.forEach(function(bi){ var ne=agg.latestRow[bi].new_existing; if(ne==='New') newCust++; else if(ne==='Existing') existCust++; });
-  renderPieChart('pie-newexist-cust', [{label:'New', value:newCust},{label:'Existing', value:existCust}]);
+  // 1 + 5: New vs Existing (customers, buyer-level) and (machines, row-level)
+  var neRows = t2GetExcluding('new_existing_set');
+  var neLatestByBuyer = Object.create(null);
+  for(var i=0;i<neRows.length;i++){
+    var r = neRows[i]; var bi = r._bidx; if(bi===undefined||bi===-1) continue;
+    var lr = neLatestByBuyer[bi];
+    if(!lr || (r.filing_date||'') > (lr.filing_date||'')) neLatestByBuyer[bi] = r;
+  }
+  var custNE = {New:0, Existing:0};
+  Object.keys(neLatestByBuyer).forEach(function(bi){ var ne=neLatestByBuyer[bi].new_existing; if(custNE[ne]!==undefined) custNE[ne]++; });
+  var machNE = {New:0, Existing:0};
+  neRows.forEach(function(r){ if(machNE[r.new_existing]!==undefined) machNE[r.new_existing]++; });
+  var neActive = filters2.new_existing_set.size>0;
+  function neSlices(counts){ return ['New','Existing'].map(function(k){ return {label:k, value:counts[k], key:k, faded: neActive && !filters2.new_existing_set.has(k)}; }); }
+  var neClick = function(s){ t2TogglePill('new_existing_set', s.key); };
+  renderPieChart('pie-newexist-cust', neSlices(custNE), neClick);
+  renderPieChart('pie-newexist-mach', neSlices(machNE), neClick);
 
-  // 2. Customer purchase segments
+  // 3 + 6: Known vs Unknown (customers, buyer-level) and (machines, row-level)
+  var knownRows = t2GetExcluding('known_set');
+  var knownTouched = Object.create(null), anyKnownByBuyer = Object.create(null);
+  for(var i2=0;i2<knownRows.length;i2++){
+    var r2 = knownRows[i2]; var bi2 = r2._bidx; if(bi2===undefined||bi2===-1) continue;
+    knownTouched[bi2] = true;
+    if(r2.known_unknown==='Known') anyKnownByBuyer[bi2] = true;
+  }
+  var custKnown=0, custUnknown=0;
+  Object.keys(knownTouched).forEach(function(bi){ if(anyKnownByBuyer[bi]) custKnown++; else custUnknown++; });
+  var machKnown = {Known:0, Unknown:0};
+  knownRows.forEach(function(r){ if(machKnown[r.known_unknown]!==undefined) machKnown[r.known_unknown]++; });
+  var knownActive = filters2.known_set.size>0;
+  var knownClick = function(s){ t2TogglePill('known_set', s.key); };
+  renderPieChart('pie-known-cust', [
+    {label:'Known', value:custKnown, key:'Known', faded: knownActive && !filters2.known_set.has('Known')},
+    {label:'Unknown', value:custUnknown, key:'Unknown', faded: knownActive && !filters2.known_set.has('Unknown')}
+  ], knownClick);
+  renderPieChart('pie-known-mach', ['Known','Unknown'].map(function(k){
+    return {label:k, value:machKnown[k], key:k, faded: knownActive && !filters2.known_set.has(k)};
+  }), knownClick);
+
+  // 2: Customer purchase segments (buyer-level, static bucket field)
+  var bucketRows = t2GetExcluding('bucket_set');
+  var bucketByBuyer = Object.create(null);
+  for(var i3=0;i3<bucketRows.length;i3++){
+    var r3 = bucketRows[i3]; var bi3 = r3._bidx; if(bi3===undefined||bi3===-1) continue;
+    if(r3.sales_bucket) bucketByBuyer[bi3] = r3.sales_bucket;
+  }
   var segCounts = {'1':0,'2-5':0,'5+':0};
-  touched.forEach(function(bi){ var b=agg.bucket[bi]; if(segCounts[b]!==undefined) segCounts[b]++; });
-  renderPieChart('pie-segments', [{label:'1 Unit', value:segCounts['1']},{label:'2-5 Units', value:segCounts['2-5']},{label:'5+ Units', value:segCounts['5+']}]);
+  Object.keys(bucketByBuyer).forEach(function(bi){ var b=bucketByBuyer[bi]; if(segCounts[b]!==undefined) segCounts[b]++; });
+  var bucketActive = filters2.bucket_set.size>0;
+  var segLabels = {'1':'1 Unit','2-5':'2-5 Units','5+':'5+ Units'};
+  renderPieChart('pie-segments', ['1','2-5','5+'].map(function(k){
+    return {label:segLabels[k], value:segCounts[k], key:k, faded: bucketActive && !filters2.bucket_set.has(k)};
+  }), function(s){ t2TogglePill('bucket_set', s.key); });
 
-  // 3. Known vs Unknown customers
-  var knownCust=0, unknownCust=0;
-  touched.forEach(function(bi){ if(agg.anyKnown[bi]) knownCust++; else unknownCust++; });
-  renderPieChart('pie-known-cust', [{label:'Known', value:knownCust},{label:'Unknown', value:unknownCust}]);
-
-  // 4. New customers by manufacturer (manufacturer of their qualifying "new" purchase)
+  // 4: New customers by manufacturer (buyer-level, excludes the manufacturer filter)
+  var mfrRows = t2GetExcluding('manufacturer');
+  var mfrLatestByBuyer = Object.create(null);
+  for(var i4=0;i4<mfrRows.length;i4++){
+    var r4 = mfrRows[i4]; var bi4 = r4._bidx; if(bi4===undefined||bi4===-1) continue;
+    var lr4 = mfrLatestByBuyer[bi4];
+    if(!lr4 || (r4.filing_date||'') > (lr4.filing_date||'')) mfrLatestByBuyer[bi4] = r4;
+  }
   var newByMfr = {};
-  touched.forEach(function(bi){
-    var r = agg.latestRow[bi];
+  Object.keys(mfrLatestByBuyer).forEach(function(bi){
+    var r = mfrLatestByBuyer[bi];
     if(r.new_existing==='New' && r.manufacturer){ newByMfr[r.manufacturer] = (newByMfr[r.manufacturer]||0)+1; }
   });
-  var mfrSlices = Object.keys(newByMfr).sort(function(a,b){return newByMfr[b]-newByMfr[a];}).slice(0,8)
-    .map(function(m){ return {label:m, value:newByMfr[m]}; });
-  renderPieChart('pie-new-mfr', mfrSlices);
-
-  // 5. New vs Existing machines (row/unit-level count)
-  var newMach=0, existMach=0;
-  t2CurrentFiltered.forEach(function(r){ if(r.new_existing==='New') newMach++; else if(r.new_existing==='Existing') existMach++; });
-  renderPieChart('pie-newexist-mach', [{label:'New', value:newMach},{label:'Existing', value:existMach}]);
-
-  // 6. Known vs Unknown machines (row/unit-level count)
-  var knownMach=0, unknownMach=0;
-  t2CurrentFiltered.forEach(function(r){ if(r.known_unknown==='Known') knownMach++; else unknownMach++; });
-  renderPieChart('pie-known-mach', [{label:'Known', value:knownMach},{label:'Unknown', value:unknownMach}]);
+  var mfrActive = filters2.manufacturer.values.size>0;
+  var mfrKeys = Object.keys(newByMfr).sort(function(a,b){return newByMfr[b]-newByMfr[a];}).slice(0,8);
+  renderPieChart('pie-new-mfr', mfrKeys.map(function(m){
+    return {label:m, value:newByMfr[m], key:m, faded: mfrActive && !passesDimension(m, filters2.manufacturer)};
+  }), function(s){ t2ToggleFilterValue('manufacturer', s.key); });
 }
 
 // ── Bar charts (reuses the .bar-row visual pattern from Tab 1) ─────────
-function renderBarList(containerId, items, maxItems){
+function renderBarList(containerId, items, maxItems, onClickItem){
   items = items.slice(0, maxItems||30);
   var maxV = Math.max.apply(null, items.map(function(x){return x.value;}).concat([1]));
-  document.getElementById(containerId).innerHTML = items.length ? items.map(function(x){
+  var el = document.getElementById(containerId);
+  el.innerHTML = items.length ? items.map(function(x, idx){
     var pct = 100*x.value/maxV;
-    return '<div class="bar-row" style="cursor:default"><div class="bl">'+esc(x.label)+'</div>'+
+    var cursor = onClickItem ? 'cursor:pointer' : 'cursor:default';
+    return '<div class="bar-row'+(x.faded?' faded':'')+'" data-idx="'+idx+'" style="'+cursor+'"><div class="bl">'+esc(x.label)+'</div>'+
       '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%"></div></div>'+
       '<div class="bar-num">'+x.display+'</div></div>';
   }).join('') : '<div class="empty">No data</div>';
+  if(onClickItem){
+    el.querySelectorAll('[data-idx]').forEach(function(node){
+      node.addEventListener('click', function(){ onClickItem(items[parseInt(node.getAttribute('data-idx'),10)]); });
+    });
+  }
 }
 
 function t2RenderBars(){
@@ -1707,24 +1806,29 @@ function t2RenderBars(){
     var anchorD = new Date(ANCHOR_DATE+'T00:00:00');
     gaps.push((anchorD-lastD)/86400000); // phantom gap to the dataset's latest date
     var avg = gaps.reduce(function(s,x){return s+x;},0)/gaps.length;
-    avgDaysItems.push({label:topCompany, value: Math.round(avg*10)/10, display: Math.round(avg*10)/10+' days', dateCount: dates.length});
+    avgDaysItems.push({label:topCompany, value: Math.round(avg*10)/10, display: Math.round(avg*10)/10+' days', dateCount: dates.length, bid: T2_BUYER_IDS[bi]});
   });
   avgDaysItems.sort(function(a,b){ return a.value - b.value; }); // most frequent buyers first
-  renderBarList('bar-avg-days', avgDaysItems, 20);
+  renderBarList('bar-avg-days', avgDaysItems, 20, function(item){ t2SetBuyerIdFilter(item.bid); });
 
-  // 2. Sales by manufacturer
+  // 2. Sales by manufacturer (excludes the manufacturer filter itself — shares the
+  // same excluded-row-set as pie 4, computed at most once per render via the cache)
+  var mfrRows2 = t2GetExcluding('manufacturer');
   var byMfr = {};
-  t2CurrentFiltered.forEach(function(r){ if(r.manufacturer) byMfr[r.manufacturer] = (byMfr[r.manufacturer]||0)+1; });
+  mfrRows2.forEach(function(r){ if(r.manufacturer) byMfr[r.manufacturer] = (byMfr[r.manufacturer]||0)+1; });
+  var mfrBarActive = filters2.manufacturer.values.size>0;
   var mfrItems = Object.keys(byMfr).sort(function(a,b){return byMfr[b]-byMfr[a];})
-    .map(function(m){ return {label:m, value:byMfr[m], display:fmtNum(byMfr[m])}; });
-  renderBarList('bar-mfr-t2', mfrItems, 30);
+    .map(function(m){ return {label:m, value:byMfr[m], display:fmtNum(byMfr[m]), key:m, faded: mfrBarActive && !passesDimension(m, filters2.manufacturer)}; });
+  renderBarList('bar-mfr-t2', mfrItems, 30, function(item){ t2ToggleFilterValue('manufacturer', item.key); });
 
-  // 3. Sales by product family (equipment description)
+  // 3. Sales by product family (equipment description), excludes its own filter
+  var equipRows = t2GetExcluding('equipment_description');
   var byEquip = {};
-  t2CurrentFiltered.forEach(function(r){ if(r.equipment_description) byEquip[r.equipment_description] = (byEquip[r.equipment_description]||0)+1; });
+  equipRows.forEach(function(r){ if(r.equipment_description) byEquip[r.equipment_description] = (byEquip[r.equipment_description]||0)+1; });
+  var equipActive = filters2.equipment_description.values.size>0;
   var equipItems = Object.keys(byEquip).sort(function(a,b){return byEquip[b]-byEquip[a];})
-    .map(function(e){ return {label:e, value:byEquip[e], display:fmtNum(byEquip[e])}; });
-  renderBarList('bar-product-family', equipItems, 30);
+    .map(function(e){ return {label:e, value:byEquip[e], display:fmtNum(byEquip[e]), key:e, faded: equipActive && !passesDimension(e, filters2.equipment_description)}; });
+  renderBarList('bar-product-family', equipItems, 30, function(item){ t2ToggleFilterValue('equipment_description', item.key); });
 }
 
 // ── Init ────────────────────────────────────────────────────────────────
